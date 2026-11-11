@@ -2,54 +2,63 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>STO Barcode</title>
 <meta name="theme-color" content="#0f5132">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="STO Barcode">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<title>STO Barcode</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root { --pri:#0f5132; --pri2:#198754; --bg:#f2f4f3; --card:#fff; --tx:#1d2420; --mut:#6b746f; --err:#b42318; --warn:#9a6700; }
-  * { box-sizing:border-box; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--tx); }
-  header { background:var(--pri); color:#fff; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:5; }
-  header b { font-size:17px; } header small { opacity:.8; }
+  header { background:var(--pri); color:#fff; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:5; gap:8px; }
+  header b { font-size:17px; } header small { opacity:.85; }
+  #btnInstall { background:#fff; color:var(--pri); padding:7px 10px; font-size:13px; border-radius:8px; }
   main { max-width:560px; margin:0 auto; padding:10px; }
   .card { background:var(--card); border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
   label { font-size:12px; color:var(--mut); display:block; margin:8px 0 3px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
-  input, select, textarea { width:100%; font-size:16px; padding:10px; border:1px solid #cfd6d2; border-radius:8px; background:#fff; }
+  input, select { width:100%; font-size:16px; padding:10px; border:1px solid #cfd6d2; border-radius:8px; background:#fff; }
   input:focus, select:focus { outline:2px solid var(--pri2); border-color:transparent; }
   .row { display:flex; gap:8px; } .row > * { flex:1; }
   button { font-size:16px; padding:12px; border:0; border-radius:10px; font-weight:700; cursor:pointer; }
   .b-pri { background:var(--pri2); color:#fff; } .b-sec { background:#e3e8e5; color:var(--tx); }
-  .b-red { background:#fde8e6; color:var(--err); } button:disabled { opacity:.5; }
-  #reader { width:100%; border-radius:10px; overflow:hidden; background:#000; min-height:0; }
-  #reader video { border-radius:10px; }
+  button:disabled { opacity:.5; }
+  #reader { width:100%; border-radius:10px; overflow:hidden; background:#000; }
   .hint { font-size:13px; color:var(--mut); margin:6px 0 0; }
   #result { border:2px solid var(--pri2); }
-  .kode { font-family:ui-monospace,Consolas,monospace; font-size:15px; background:#eef6f1; padding:4px 8px; border-radius:6px; display:inline-block; }
-  .nama { font-size:20px; font-weight:800; margin:6px 0 2px; }
-  .badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:20px; background:#e3e8e5; margin-left:4px; }
+  .kode { font-family:ui-monospace,Consolas,monospace; font-size:14px; background:#eef6f1; padding:3px 8px; border-radius:6px; display:inline-block; margin:0 4px 4px 0; }
+  .kode.lb { background:#1f3a5f; color:#fff; }
+  .nama { font-size:20px; font-weight:800; margin:4px 0 2px; }
+  .badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:20px; background:#e3e8e5; }
   .alert { padding:8px 10px; border-radius:8px; font-size:14px; margin-top:8px; }
   .a-warn { background:#fff4d6; color:var(--warn); } .a-err { background:#fde8e6; color:var(--err); }
   #qty { font-size:28px; font-weight:800; text-align:center; padding:12px; }
   .list .it { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid #eef0ef; padding:8px 0; font-size:14px; }
   .list .it:last-child { border:0; } .list .q { font-weight:800; white-space:nowrap; }
   .list .x { background:none; color:var(--err); padding:4px 8px; font-size:13px; }
-  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#1d2420; color:#fff; padding:12px 18px; border-radius:10px; font-size:15px; display:none; z-index:20; max-width:90%; text-align:center; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#1d2420; color:#fff; padding:12px 18px; border-radius:10px; font-size:15px; display:none; z-index:30; max-width:90%; text-align:center; }
   .chk { display:flex; align-items:center; gap:8px; font-size:14px; margin-top:10px; } .chk input { width:auto; }
   .hide { display:none !important; }
-  .stat { font-size:14px; color:var(--mut); }
+  .stat { font-size:13px; color:var(--mut); }
+  .per { display:inline-block; background:#fff3; padding:1px 8px; border-radius:20px; font-size:12px; }
+  /* Notifikasi SUDAH DISCAN (layar penuh) */
+  #block { position:fixed; inset:0; background:rgba(180,35,24,.96); color:#fff; z-index:40; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  #block h1 { font-size:30px; margin:8px 0; } #block .big { font-size:64px; }
+  #block .det { font-size:16px; line-height:1.5; background:rgba(0,0,0,.2); padding:12px; border-radius:10px; margin:12px 0; max-width:420px; }
+  #block button { background:#fff; color:var(--err); width:100%; max-width:320px; font-size:18px; }
 </style>
 </head>
 <body>
 <header>
-  <div><b>STO Barcode</b><br><small id="tgl">memuat…</small></div>
-  <small id="ver"></small>
+  <div><b>STO Barcode</b> <small id="qstat" style="padding:1px 8px;border-radius:20px;background:#ffffff33">✅</small><br><small id="tgl">memuat…</small></div>
+  <div style="text-align:right"><button id="btnInstall" class="hide">📲 Install</button><br><small id="ver"></small></div>
 </header>
 <main>
-  <!-- PIC & LOKASI -->
   <div class="card">
     <div class="row">
       <div><label>PIC</label><input id="pic" placeholder="Nama PIC" autocomplete="name"></div>
@@ -57,7 +66,6 @@
     </div>
   </div>
 
-  <!-- SCANNER -->
   <div class="card">
     <div id="reader"></div>
     <div class="row" style="margin-top:8px">
@@ -67,7 +75,7 @@
     <input id="file" type="file" accept="image/*" capture="environment" class="hide">
     <label>atau ketik / scanner bluetooth</label>
     <div class="row">
-      <input id="manual" placeholder="Kode barcode lalu Enter" autocapitalize="characters" style="flex:3">
+      <input id="manual" placeholder="No label / kode lalu Enter" autocapitalize="characters" style="flex:3">
       <button id="btnCari" class="b-sec" style="flex:1">Cari</button>
     </div>
     <div class="chk"><input type="checkbox" id="mode1"><span>Mode cepat: Qty otomatis <b>1</b> & langsung simpan tiap scan</span></div>
@@ -75,9 +83,8 @@
     <div id="readerFile" class="hide"></div>
   </div>
 
-  <!-- HASIL SCAN -->
   <div class="card hide" id="result">
-    <span class="kode" id="rKode"></span><span class="badge" id="rSat"></span>
+    <div><span class="kode lb hide" id="rLabel"></span><span class="kode" id="rKode"></span><span class="badge hide" id="rSat"></span></div>
     <div class="nama" id="rNama"></div>
     <div id="rAlert"></div>
     <div id="rManualBox" class="hide">
@@ -94,7 +101,6 @@
     </div>
   </div>
 
-  <!-- RIWAYAT -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b>Scan saya hari ini</b><span class="stat" id="cnt">0 data</span>
@@ -103,16 +109,30 @@
   </div>
 </main>
 <div id="toast"></div>
+<div id="block" class="hide">
+  <div class="big">⛔</div>
+  <h1>SUDAH DISCAN</h1>
+  <div id="blockTxt" style="font-size:18px;font-weight:700"></div>
+  <div class="det" id="blockDet"></div>
+  <p style="opacity:.9">Data tidak disimpan supaya tidak dobel.</p>
+  <button id="blockOk">OK, lanjut scan</button>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
-const S = { items: {}, cur: null, scanner: null, scanning: false, busy: false, lastCode: '', lastTime: 0 };
+const S = { items: {}, labels: {}, scanned: {}, periode: '', blokir: true, cur: null, scanner: null, scanning: false, busy: false, lastCode: '', lastTime: 0 };
 const store = {
   get: k => { try { return localStorage.getItem('stob_' + k) || ''; } catch (e) { return ''; } },
   set: (k, v) => { try { localStorage.setItem('stob_' + k, v); } catch (e) {} }
 };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = k => String(k || '').trim().toUpperCase();
+
+/* antrian simpan (tersimpan di HP sampai terkirim) */
+const Q = (() => { try { return JSON.parse(store.get('queue') || '[]'); } catch (e) { return []; } })();
+const REJ = [];                 // ditolak server (dobel / error) - tampil merah di daftar
+let SENDING = false, RETRY = 0, OFFLINE = false;
+
 /* ===== KONFIGURASI VERSI GITHUB =====
  * Isi 2 nilai ini bila file ini di-host di GitHub Pages (supaya kamera bisa dibuka).
  * Nilainya ada di Spreadsheet: menu STO Barcode > Info link HP (GitHub).
@@ -122,22 +142,22 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARY
 const API_KEY = 'c6cbd0f1b77144cc';
 
 const IN_GAS = typeof google !== 'undefined' && google.script && google.script.run;
-const API_NAME = { getInit: 'init', lookupItem: 'lookup', checkScanned: 'check', saveScan: 'save', getRecent: 'recent', deleteScan: 'del' };
+const API_NAME = { getInit: 'init', resolveCode: 'resolve', saveScan: 'save', saveBatch: 'batch', getRecent: 'recent', deleteScan: 'del' };
 function run(fn, ...a) {
   if (IN_GAS) return new Promise((ok, no) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => no(e))[fn](...a));
   return apiCall(fn, a);
 }
 async function apiCall(fn, a) {
   const url = API_URL || store.get('api_url'), key = API_KEY || store.get('api_key');
-  if (!url) throw new Error('API_URL belum diisi di file scan.html');
+  if (!url) throw new Error('API_URL belum diisi di file index.html');
   const body = { api: API_NAME[fn], key: key };
-  if (fn === 'lookupItem' || fn === 'checkScanned') body.kode = a[0];
+  if (fn === 'resolveCode') body.kode = a[0];
   if (fn === 'saveScan') body.data = a[0];
+  if (fn === 'saveBatch') body.list = a[0];
   if (fn === 'getRecent') body.pic = a[0];
   if (fn === 'deleteScan') { body.rid = a[0]; body.pic = a[1]; }
   let r;
   try {
-    // text/plain supaya tidak ada preflight CORS; Apps Script mengembalikan JSON
     r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
   } catch (e) { throw new Error('Tidak bisa menghubungi server (cek internet / akses deployment = Siapa saja)'); }
   let j;
@@ -145,8 +165,7 @@ async function apiCall(fn, a) {
   if (!j.ok) throw new Error(j.error);
   return j.data;
 }
-// Alternatif tanpa edit file: buka scan.html?api=URL_EXEC&key=API_KEY sekali, nilainya tersimpan di HP
-(function () {
+(function () {   // alternatif: buka ?api=URL_EXEC&key=API_KEY sekali, nilainya tersimpan di HP
   try {
     const q = new URLSearchParams(location.search);
     if (q.get('api')) { store.set('api_url', q.get('api')); store.set('api_key', q.get('key') || ''); history.replaceState(null, '', location.pathname); }
@@ -161,36 +180,46 @@ function beep(ok) {
   try {
     const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());
     const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.value = ok ? 1500 : 300; o.connect(g); g.connect(ctx.destination);
-    g.gain.value = .15; o.start(); o.stop(ctx.currentTime + (ok ? .12 : .35));
+    o.frequency.value = ok ? 1500 : 260; o.connect(g); g.connect(ctx.destination);
+    g.gain.value = .18; o.start(); o.stop(ctx.currentTime + (ok ? .12 : .5));
   } catch (e) {}
-  try { navigator.vibrate && navigator.vibrate(ok ? 80 : [100, 60, 100]); } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate(ok ? 80 : [200, 80, 200, 80, 200]); } catch (e) {}
 }
 
-/* ---------- INIT ---------- */
-run('getInit').then(d => {
-  $('tgl').textContent = 'Tanggal STO: ' + d.today;
+/* ---------- INIT (pakai data tersimpan di HP dulu supaya instan, lalu perbarui dari server) ---------- */
+function applyInit(d) {
+  $('tgl').innerHTML = esc(d.today) + ' · <span class="per">Periode ' + esc(d.periode) + '</span>';
   $('ver').textContent = 'v' + d.version;
-  d.items.forEach(x => S.items[norm(x[0])] = x);
-  const sel = $('lokasi');
+  S.periode = d.periode; S.blokir = d.blokir !== false;
+  S.items = {}; d.items.forEach(x => S.items[norm(x[0])] = x);
+  S.labels = {}; (d.labels || []).forEach(x => S.labels[norm(x[0])] = x);
+  S.scanned = {}; (d.scanned || []).forEach(x => S.scanned[norm(x)] = true);
+  Q.forEach(x => { if (x.label) S.scanned[norm(x.label)] = true; });   // yang masih antre tetap dianggap sudah discan
+  const sel = $('lokasi'), cur = sel.value || store.get('lokasi');
+  sel.innerHTML = '<option value="">— pilih —</option>';
   d.lokasi.forEach(l => { const o = document.createElement('option'); o.value = o.textContent = l; sel.appendChild(o); });
-  $('pic').value = store.get('pic');
-  if (store.get('lokasi')) sel.value = store.get('lokasi');
-  $('mode1').checked = store.get('mode1') === '1';
-  $('camHint').textContent = d.items.length + ' item master termuat.';
-  loadRecent();
-}).catch(e => {
-  $('tgl').textContent = '⚠️ TIDAK TERHUBUNG KE SERVER';
-  const box = document.createElement('div');
-  box.className = 'card'; box.style.border = '2px solid #b42318';
-  box.innerHTML = '<b style="color:#b42318">Gagal terhubung ke server</b><div class="alert a-err">' + esc(e.message || e) + '</div>' +
-    '<p class="hint"><b>Cek:</b><br>1. <code>API_URL</code> & <code>API_KEY</code> di index.html sudah diisi (URL berakhiran <b>/exec</b>)<br>' +
-    '2. Code.gs sudah versi <b>1.1.0</b> (ada fungsi doPost) & fungsi <b>setup</b> sudah dijalankan<br>' +
-    '3. Apps Script: Terapkan &gt; Kelola deployment &gt; Edit &gt; <b>Versi baru</b>, akses <b>Siapa saja</b> &gt; Terapkan<br>' +
-    '4. API_URL dibuka langsung di browser + <code>?api=init&amp;key=API_KEY</code> harus tampil teks <code>{"ok":true,...}</code></p>' +
-    '<p class="hint">Server: ' + esc(API_URL || store.get('api_url') || '(kosong)') + '</p>';
-  document.querySelector('main').prepend(box);
-});
+  if (cur) sel.value = cur;
+  $('camHint').textContent = d.items.length + ' item · ' + (d.labels || []).length + ' label · ' + (d.scanned || []).length + ' label sudah discan periode ini.';
+}
+function loadInit() {
+  return run('getInit').then(d => { applyInit(d); store.set('init', JSON.stringify(d)); })
+    .catch(e => {
+      if (store.get('init')) { toast('Server lambat/terputus, memakai data tersimpan', 3000); return; }
+      $('tgl').textContent = '⚠️ TIDAK TERHUBUNG KE SERVER';
+      const box = document.createElement('div');
+      box.className = 'card'; box.style.border = '2px solid #b42318';
+      box.innerHTML = '<b style="color:#b42318">Gagal terhubung ke server</b><div class="alert a-err">' + esc(e.message || e) + '</div>' +
+        '<p class="hint"><b>Cek:</b><br>1. <code>API_URL</code> & <code>API_KEY</code> di index.html sudah diisi (URL berakhiran <b>/exec</b>)<br>' +
+        '2. Code.gs versi terbaru & fungsi <b>setup</b> sudah dijalankan<br>' +
+        '3. Apps Script: Terapkan &gt; Kelola deployment &gt; Edit &gt; <b>Versi baru</b>, akses <b>Siapa saja</b></p>';
+      document.querySelector('main').prepend(box);
+    });
+}
+try { const c = store.get('init'); if (c) applyInit(JSON.parse(c)); } catch (e) {}
+$('pic').value = store.get('pic');
+$('mode1').checked = store.get('mode1') === '1';
+loadInit().then(loadRecent);
+setInterval(() => { if (!S.cur && !SENDING) loadInit(); }, 120000);   // segarkan data label/scan tiap 2 menit
 
 $('pic').addEventListener('change', () => { store.set('pic', $('pic').value.trim()); loadRecent(); });
 $('lokasi').addEventListener('change', () => store.set('lokasi', $('lokasi').value));
@@ -203,28 +232,24 @@ function needSetup() {
 }
 
 /* ---------- SCANNER KAMERA ---------- */
-const FORMATS = [
-  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.QR_CODE
-];
-const scanCfg = { formatsToSupport: FORMATS, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } };
+const F = Html5QrcodeSupportedFormats;
+const scanCfg = { formatsToSupport: [F.CODE_128, F.QR_CODE, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A],
+  verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } };
 
 async function startScan() {
   if (needSetup()) return;
   if (!S.scanner) S.scanner = new Html5Qrcode('reader', scanCfg);
   try {
     await S.scanner.start({ facingMode: 'environment' },
-      { fps: 12, qrbox: (w, h) => ({ width: Math.floor(w * .85), height: Math.floor(Math.min(h, w) * .5) }), aspectRatio: 1.333 },
+      { fps: 15, qrbox: (w, h) => ({ width: Math.floor(w * .85), height: Math.floor(Math.min(h, w) * .55) }), aspectRatio: 1.333 },
       onDecoded, () => {});
-    S.scanning = true; $('btnScan').textContent = '⏹ Stop Scan'; $('camHint').textContent = 'Arahkan kamera ke barcode.';
+    S.scanning = true; $('btnScan').textContent = '⏹ Stop Scan';
   } catch (e) {
     S.scanning = false;
     const blocked = /NotAllowed|Permission/i.test(String(e && (e.name || e.message) || e));
-    $('camHint').innerHTML = '<span style="color:#b42318">Kamera langsung tidak bisa dibuka (' + esc(e.message || e) + ').</span><br>' +
-      (blocked && IN_GAS
-        ? 'Halaman Google Apps Script memblokir kamera. Pakai <b>versi GitHub</b> (lihat README), atau sementara pakai tombol <b>Foto Barcode</b>.'
-        : blocked
-          ? 'Izinkan kamera: ketuk ikon 🔒 / ⓘ di sebelah alamat web → Izin → Kamera → Izinkan, lalu muat ulang.'
+    $('camHint').innerHTML = '<span style="color:#b42318">Kamera tidak bisa dibuka (' + esc(e.message || e) + ').</span><br>' +
+      (blocked && IN_GAS ? 'Halaman Google memblokir kamera: pakai aplikasi versi GitHub, atau tombol <b>Foto Barcode</b>.'
+        : blocked ? 'Izinkan kamera: ketuk ikon 🔒 di sebelah alamat → Izin → Kamera → Izinkan, lalu muat ulang.'
           : 'Pakai tombol <b>Foto Barcode</b> atau ketik kode.');
   }
 }
@@ -234,17 +259,16 @@ async function stopScan() {
 }
 function pauseScan() { if (S.scanner && S.scanning) { try { S.scanner.pause(true); } catch (e) {} } }
 function resumeScan() { if (S.scanner && S.scanning) { try { S.scanner.resume(); } catch (e) {} } }
-
 $('btnScan').onclick = () => S.scanning ? stopScan() : startScan();
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopScan(); });
 
 function onDecoded(text) {
   const now = Date.now();
-  if (S.busy || (text === S.lastCode && now - S.lastTime < 2500)) return;   // cegah dobel baca
+  if (S.busy || S.cur || !$('block').classList.contains('hide') || (text === S.lastCode && now - S.lastTime < 3000)) return;
   S.lastCode = text; S.lastTime = now;
   handleCode(text);
 }
 
-/* ---------- FOTO BARCODE (cadangan bila kamera live diblokir) ---------- */
 $('btnFoto').onclick = () => { if (!needSetup()) $('file').click(); };
 $('file').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
@@ -258,55 +282,97 @@ $('file').onchange = async e => {
   } catch (err) { beep(false); toast('Barcode tidak terbaca. Foto lebih dekat & terang, atau ketik kode.', 4000); }
 };
 
-/* ---------- INPUT MANUAL / SCANNER BLUETOOTH ---------- */
 $('manual').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('btnCari').click(); } });
 $('btnCari').onclick = () => {
-  const v = $('manual').value.trim(); if (!v) return;
-  if (needSetup()) return;
+  const v = $('manual').value.trim(); if (!v || needSetup()) return;
   $('manual').value = ''; handleCode(v);
 };
 
+/* ---------- NOTIFIKASI SUDAH DISCAN ---------- */
+function showBlock(no, nama, prev, extra) {
+  pauseScan(); beep(false);
+  $('blockTxt').textContent = no + (nama ? ' · ' + nama : '');
+  $('blockDet').innerHTML = prev && prev.length
+    ? prev.map(x => esc('Discan ' + x.tgl + ' ' + x.time + ' oleh ' + x.pic + ' di ' + x.lokasi + ' · qty ' + x.qty)).join('<br>')
+    : esc(extra || 'Label ini sudah discan di periode ' + S.periode + '.');
+  $('block').classList.remove('hide');
+}
+$('blockOk').onclick = () => { $('block').classList.add('hide'); S.cur = null; resumeScan(); };
+
 /* ---------- PROSES KODE ---------- */
 async function handleCode(raw) {
-  const kode = String(raw).trim();
-  if (!kode) return;
+  const code = norm(raw);
+  if (!code) return;
   pauseScan();
-  let it = S.items[norm(kode)];
-  if (!it) {  // mungkin item baru ditambahkan setelah aplikasi dibuka
-    try { it = await run('lookupItem', kode); if (it) S.items[norm(it[0])] = it; } catch (e) {}
-  }
-  beep(!!it);
+  const lab = S.labels[code];
 
-  if ($('mode1').checked && it) {   // mode cepat
-    S.cur = { kode: it[0], item: it };
-    return save('1', '');
+  // 1) Label unik yang sudah discan (data di HP) -> langsung tolak tanpa menunggu server
+  if (lab && S.scanned[code] && S.blokir) {
+    const it = S.items[norm(lab[1])];
+    S.cur = { blocked: true };
+    showBlock(code, it ? it[1] : lab[1], null);
+    run('resolveCode', code).then(r => { if (r.prev && r.prev.length) showBlock(code, r.nama, r.prev); }).catch(() => {});
+    return;
   }
-  showResult(kode, it);
+  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
+
+  // 2) Label / item dikenal di HP -> tampil instan, cek server di belakang
+  let info = null;
+  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : lab[1], satuan: it ? it[2] : '' }; }
+  else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
+
+  if (info) {
+    beep(true);
+    if ($('mode1').checked) { S.cur = info; return save('1', ''); }
+    showResult(info);
+    run('resolveCode', code).then(r => applyResolve(r, code)).catch(() => {});
+    return;
+  }
+
+  // 3) Tidak dikenal di HP (mis. label baru dicetak) -> tanya server
+  toast('Mencari ' + code + '…', 1500);
+  try {
+    const r = await run('resolveCode', code);
+    if (r.type === 'label') S.labels[code] = [r.kode, r.nama, r.labelStatus === 'AKTIF' ? 1 : 0];
+    if (r.type === 'label' && r.prev.length && r.blokir) { S.scanned[code] = true; S.cur = { blocked: true }; return showBlock(code, r.nama, r.prev); }
+    if (r.type === 'label' && r.labelStatus !== 'AKTIF') { beep(false); toast('Label ' + code + ' berstatus ' + r.labelStatus, 4000); return resumeScan(); }
+    beep(r.type !== 'unknown');
+    if (r.type !== 'unknown' && $('mode1').checked) { S.cur = r; return save('1', ''); }
+    showResult(r); applyResolve(r, code);
+  } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); resumeScan(); }
 }
 
-function showResult(kode, it) {
-  S.cur = { kode: it ? it[0] : kode, item: it };
-  $('rKode').textContent = S.cur.kode;
-  $('rNama').textContent = it ? it[1] : 'ITEM TIDAK TERDAFTAR';
-  $('rNama').style.color = it ? '' : '#b42318';
-  $('rSat').textContent = it && it[2] ? it[2] : '';
-  $('rSat').classList.toggle('hide', !(it && it[2]));
-  $('rSat2').textContent = it && it[2] ? '(' + it[2] + ')' : '';
-  $('rManualBox').classList.toggle('hide', !!it);
-  $('rAlert').innerHTML = it ? '' : '<div class="alert a-err">Kode ini belum ada di Master_Item. Cek label, atau simpan dengan nama manual (status: TIDAK TERDAFTAR).</div>';
+function applyResolve(r, code) {
+  if (!S.cur || (S.cur.label || S.cur.kode) !== (r.label || r.kode)) return;
+  if (r.type === 'label' && r.prev.length) {
+    S.scanned[norm(code)] = true;
+    if (r.blokir) { $('result').classList.add('hide'); S.cur = { blocked: true }; return showBlock(code, r.nama, r.prev); }
+  }
+  if (r.prev && r.prev.length) {
+    const tot = r.prev.reduce((a, b) => a + (Number(b.qty) || 0), 0);
+    $('rAlert').innerHTML += '<div class="alert a-warn">⚠️ ' + (r.type === 'label' ? 'Label ini' : 'Kode item ini') +
+      ' sudah discan ' + r.prev.length + 'x di periode ini (total ' + tot + '):<br>' +
+      r.prev.slice(-4).map(x => esc(x.tgl + ' ' + x.time + ' · ' + x.lokasi + ' · ' + x.pic + ' · ' + x.qty)).join('<br>') +
+      (r.type === 'item' ? '<br>Simpan lagi hanya jika ini barang/tumpukan yang berbeda.' : '') + '</div>';
+  }
+}
+
+function showResult(info) {
+  S.cur = info;
+  const known = info.type !== 'unknown';
+  $('rLabel').textContent = info.label || ''; $('rLabel').classList.toggle('hide', !info.label);
+  $('rKode').textContent = info.kode;
+  $('rNama').textContent = known ? info.nama : 'ITEM TIDAK TERDAFTAR';
+  $('rNama').style.color = known ? '' : '#b42318';
+  $('rSat').textContent = info.satuan || ''; $('rSat').classList.toggle('hide', !info.satuan);
+  $('rSat2').textContent = info.satuan ? '(' + info.satuan + ')' : '';
+  $('rManualBox').classList.toggle('hide', known);
+  $('rAlert').innerHTML = known ? (info.type === 'item' ? '<div class="alert a-warn">Ini kode item (bukan nomor label unik), scan dobel tidak bisa diblokir otomatis.</div>' : '')
+    : '<div class="alert a-err">Kode ini tidak ada di Master_Item / Label_Log. Simpan dengan nama manual (status: TIDAK TERDAFTAR) atau Batal.</div>';
   $('qty').value = ''; $('catatan').value = ''; $('namaManual').value = '';
   $('result').classList.remove('hide');
   $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   setTimeout(() => $('qty').focus(), 250);
-
-  // peringatan bila sudah pernah discan hari ini
-  run('checkScanned', S.cur.kode).then(list => {
-    if (!list.length || !S.cur || S.cur.kode !== (it ? it[0] : kode)) return;
-    const tot = list.reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    $('rAlert').innerHTML += '<div class="alert a-warn">⚠️ Sudah discan ' + list.length + 'x hari ini (total ' + tot + '):<br>' +
-      list.slice(-4).map(x => esc(x.time + ' · ' + x.lokasi + ' · ' + x.pic + ' · ' + x.qty)).join('<br>') +
-      '<br>Simpan lagi hanya jika ini barang/tumpukan yang berbeda.</div>';
-  }).catch(() => {});
 }
 
 function hideResult() { $('result').classList.add('hide'); S.cur = null; resumeScan(); }
@@ -316,52 +382,130 @@ $('catatan').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preve
 $('btnSimpan').onclick = () => {
   const q = $('qty').value.trim();
   if (!/^\d[\d.,]*$/.test(q)) { toast('Isi Qty dengan angka'); $('qty').focus(); return; }
-  if (!S.cur.item && !$('namaManual').value.trim()) { toast('Isi nama item manual'); $('namaManual').focus(); return; }
+  if (S.cur.type === 'unknown' && !$('namaManual').value.trim()) { toast('Isi nama item manual'); $('namaManual').focus(); return; }
   save(q, $('catatan').value.trim());
 };
 
-async function save(qty, note) {
-  if (S.busy || !S.cur) return;
-  S.busy = true; $('btnSimpan').disabled = true; $('btnSimpan').textContent = 'Menyimpan…';
-  try {
-    const r = await run('saveScan', {
-      pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: S.cur.kode,
-      qty: qty, catatan: note, namaManual: $('namaManual').value.trim()
-    });
-    toast('✅ Tersimpan: ' + (r.nama || S.cur.kode) + ' = ' + qty + (r.satuan ? ' ' + r.satuan : ''));
-    hideResult();
-    loadRecent();
-  } catch (e) {
-    beep(false); toast('Gagal simpan: ' + e.message, 5000);
-    if ($('mode1').checked) resumeScan();
-  } finally {
-    S.busy = false; $('btnSimpan').disabled = false; $('btnSimpan').textContent = '💾 Simpan';
-  }
+/* ---------- SIMPAN = MASUK ANTRIAN (langsung lanjut scan), dikirim di belakang layar ---------- */
+const saveQ = () => store.set('queue', JSON.stringify(Q));
+const cidNew = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase();
+
+function save(qty, note) {
+  if (!S.cur) return;
+  const cur = S.cur;
+  const e = {
+    cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: cur.label || '',
+    qty: qty, catatan: note, namaManual: $('namaManual').value.trim(),
+    nama: cur.type === 'unknown' ? $('namaManual').value.trim() : cur.nama, satuan: cur.satuan || '',
+    time: new Date().toTimeString().slice(0, 5)
+  };
+  Q.push(e); saveQ();
+  if (e.label) S.scanned[norm(e.label)] = true;          // scan berikutnya label ini langsung ditolak di HP
+  beep(true);
+  toast('✅ ' + (e.label ? e.label + ' · ' : '') + (e.nama || e.kode) + ' = ' + qty + (e.satuan ? ' ' + e.satuan : ''), 1500);
+  hideResult();
+  renderList(); flush();
 }
 
-/* ---------- RIWAYAT ---------- */
+async function flush() {
+  if (SENDING || !Q.length) { status(); return; }
+  SENDING = true; status();
+  const batch = Q.slice(0, 20);
+  try {
+    const res = await run('saveBatch', batch.map(x => ({ cid: x.cid, pic: x.pic, lokasi: x.lokasi, kode: x.kode, label: x.label,
+      qty: x.qty, catatan: x.catatan, namaManual: x.namaManual })));
+    OFFLINE = false; RETRY = 0;
+    let firstDup = null;
+    res.forEach(r => {
+      const i = Q.findIndex(x => x.cid === r.cid);
+      const e = i > -1 ? Q.splice(i, 1)[0] : null;
+      if (!e) return;
+      if (r.ok) { S.recent.unshift(Object.assign({}, e, { rid: r.rid, status: 'OK', nama: r.nama || e.nama, satuan: r.satuan || e.satuan })); S.count++; }
+      else if (r.dup) { REJ.unshift(Object.assign({}, e, { why: 'DOBEL: sudah discan ' + r.dup.tgl + ' ' + r.dup.time + ' oleh ' + r.dup.pic + ' di ' + r.dup.lokasi })); if (!firstDup) firstDup = { e: e, r: r }; }
+      else { REJ.unshift(Object.assign({}, e, { why: r.error || 'gagal' })); if (e.label) delete S.scanned[norm(e.label)]; toast('⚠️ ' + (e.label || e.kode) + ': ' + r.error, 5000); }
+    });
+    saveQ();
+    if (firstDup) showBlock(firstDup.e.label, firstDup.e.nama, [firstDup.r.dup]);
+  } catch (err) {
+    const m = String(err.message || err);
+    if (/API key|tidak dikenal|API_URL/i.test(m)) toast('Gagal kirim: ' + m, 6000);
+    OFFLINE = true; RETRY = Math.min(RETRY + 1, 6);
+    setTimeout(flush, RETRY * 5000);                       // coba lagi: 5, 10, ... 30 detik
+  } finally {
+    SENDING = false; renderList(); status();
+    if (Q.length && !OFFLINE) setTimeout(flush, 50);
+  }
+}
+window.addEventListener('online', () => { RETRY = 0; flush(); });
+setInterval(flush, 15000);
+
+function status() {
+  const el = $('qstat');
+  if (!Q.length) { el.textContent = OFFLINE ? '📶 offline' : '✅ semua tersimpan'; el.style.background = OFFLINE ? '#9a6700' : '#ffffff33'; return; }
+  el.textContent = (OFFLINE ? '📶 offline · ' : SENDING ? '⏫ mengirim · ' : '⏳ ') + Q.length + ' antre';
+  el.style.background = OFFLINE ? '#9a6700' : '#ffffff33';
+}
+
+/* ---------- RIWAYAT (antre + ditolak + tersimpan) ---------- */
+S.recent = []; S.count = 0;
 function loadRecent() {
   const pic = $('pic').value.trim();
   if (!pic) return;
   run('getRecent', pic).then(d => {
-    $('cnt').textContent = d.count + ' data';
-    $('list').innerHTML = d.rows.length ? d.rows.map(r =>
-      '<div class="it"><div><b>' + esc(r.nama || '(tanpa nama)') + '</b>' +
-      (r.status !== 'OK' ? ' <span class="badge" style="background:#fde8e6;color:#b42318">' + esc(r.status) + '</span>' : '') +
-      '<br><span class="stat">' + esc(r.time + ' · ' + r.kode + ' · ' + r.lokasi) + (r.note ? ' · ' + esc(r.note) : '') + '</span></div>' +
-      '<div style="text-align:right"><span class="q">' + esc(r.qty) + ' ' + esc(r.satuan) + '</span><br>' +
-      '<button class="x" data-rid="' + esc(r.rid) + '">Hapus</button></div></div>').join('')
-      : '<p class="hint">Belum ada data.</p>';
+    const sent = {}; Q.forEach(x => sent[x.cid] = true);
+    S.recent = d.rows.filter(r => !sent[r.rid]); S.count = d.count;
+    renderList();
   }).catch(() => {});
 }
+function renderList() {
+  const me = norm($('pic').value);
+  const pend = Q.filter(x => norm(x.pic) === me).slice().reverse();
+  const item = (r, kind) => '<div class="it"' + (kind === 'rej' ? ' style="background:#fde8e6;border-radius:8px;padding:8px"' : '') + '><div><b>' +
+    esc(r.nama || '(tanpa nama)') + '</b>' +
+    (kind === 'pend' ? ' <span class="badge">⏳ antre</span>' : '') +
+    (kind === 'rej' ? ' <span class="badge" style="background:#b42318;color:#fff">DITOLAK</span>' : '') +
+    (kind === 'ok' && r.status !== 'OK' ? ' <span class="badge" style="background:#fde8e6;color:#b42318">' + esc(r.status) + '</span>' : '') +
+    '<br><span class="stat">' + esc(r.time + ' · ' + (r.label ? r.label + ' · ' : '') + r.kode + ' · ' + r.lokasi) + (r.catatan || r.note ? ' · ' + esc(r.catatan || r.note) : '') + '</span>' +
+    (kind === 'rej' ? '<br><span class="stat" style="color:#b42318">' + esc(r.why) + '</span>' : '') + '</div>' +
+    '<div style="text-align:right"><span class="q">' + esc(r.qty) + ' ' + esc(r.satuan) + '</span><br>' +
+    (kind === 'ok' ? '<button class="x" data-rid="' + esc(r.rid) + '" data-label="' + esc(r.label) + '">Hapus</button>'
+      : kind === 'pend' ? '<button class="x" data-cid="' + esc(r.cid) + '">Batal</button>'
+        : '<button class="x" data-rej="' + esc(r.cid) + '">Tutup</button>') + '</div></div>';
+  const html = REJ.map(r => item(r, 'rej')).join('') + pend.map(r => item(r, 'pend')).join('') + S.recent.slice(0, 50).map(r => item(r, 'ok')).join('');
+  $('cnt').textContent = (S.count + pend.length) + ' data' + (pend.length ? ' (' + pend.length + ' antre)' : '');
+  $('list').innerHTML = html || '<p class="hint">Belum ada data.</p>';
+}
 $('list').addEventListener('click', e => {
-  const b = e.target.closest('button[data-rid]'); if (!b) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.rej) { const i = REJ.findIndex(x => x.cid === b.dataset.rej); if (i > -1) REJ.splice(i, 1); return renderList(); }
+  if (b.dataset.cid) {                                      // batalkan yang masih antre (belum terkirim)
+    if (SENDING) { toast('Sedang mengirim, coba lagi sebentar'); return; }
+    const i = Q.findIndex(x => x.cid === b.dataset.cid);
+    if (i > -1) { const x = Q.splice(i, 1)[0]; if (x.label) delete S.scanned[norm(x.label)]; saveQ(); }
+    toast('Dibatalkan'); renderList(); status(); return;
+  }
+  if (!b.dataset.rid) return;
   if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Yakin hapus?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Hapus'; }, 3000); return; }
   b.disabled = true;
   run('deleteScan', b.dataset.rid, $('pic').value.trim())
-    .then(() => { toast('Data dihapus'); loadRecent(); })
+    .then(() => { if (b.dataset.label) delete S.scanned[norm(b.dataset.label)]; toast('Data dihapus (label bisa discan lagi)'); loadRecent(); })
     .catch(err => { toast('Gagal hapus: ' + err.message, 4000); b.disabled = false; });
 });
+renderList(); status(); flush();
+
+/* ---------- APLIKASI TERINSTAL (khusus versi GitHub) ---------- */
+if (!IN_GAS && 'serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('btnInstall').classList.remove('hide'); });
+  window.addEventListener('appinstalled', () => { $('btnInstall').classList.add('hide'); toast('Aplikasi terpasang di layar utama ✅', 3000); });
+  $('btnInstall').onclick = async () => {
+    if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; $('btnInstall').classList.add('hide'); }
+    else toast('iPhone: tombol Bagikan → Tambah ke Layar Utama', 4000);
+  };
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!standalone && /iPhone|iPad/i.test(navigator.userAgent)) $('btnInstall').classList.remove('hide');
+}
 </script>
 </body>
 </html>
