@@ -118,7 +118,7 @@ const norm = k => String(k || '').trim().toUpperCase();
  * Nilainya ada di Spreadsheet: menu STO Barcode > Info link HP (GitHub).
  * Bila dibuka dari link Apps Script (/exec), biarkan kosong.
  */
-const API_URL = 'https://script.google.com/macros/s/AKfycbx7QYkf7wZhMIN8OYPyH86NXfqRrYRNbxQJILo20Q-v/dev';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARYe360TFd_CgPOB6iOoopM3pxRQ8vi9yJ1AbnHbQ4MOxuOeA/exec';
 const API_KEY = 'c6cbd0f1b77144cc';
 
 const IN_GAS = typeof google !== 'undefined' && google.script && google.script.run;
@@ -179,7 +179,18 @@ run('getInit').then(d => {
   $('mode1').checked = store.get('mode1') === '1';
   $('camHint').textContent = d.items.length + ' item master termuat.';
   loadRecent();
-}).catch(e => toast('Gagal memuat: ' + e.message, 6000));
+}).catch(e => {
+  $('tgl').textContent = '⚠️ TIDAK TERHUBUNG KE SERVER';
+  const box = document.createElement('div');
+  box.className = 'card'; box.style.border = '2px solid #b42318';
+  box.innerHTML = '<b style="color:#b42318">Gagal terhubung ke server</b><div class="alert a-err">' + esc(e.message || e) + '</div>' +
+    '<p class="hint"><b>Cek:</b><br>1. <code>API_URL</code> & <code>API_KEY</code> di index.html sudah diisi (URL berakhiran <b>/exec</b>)<br>' +
+    '2. Code.gs sudah versi <b>1.1.0</b> (ada fungsi doPost) & fungsi <b>setup</b> sudah dijalankan<br>' +
+    '3. Apps Script: Terapkan &gt; Kelola deployment &gt; Edit &gt; <b>Versi baru</b>, akses <b>Siapa saja</b> &gt; Terapkan<br>' +
+    '4. API_URL dibuka langsung di browser + <code>?api=init&amp;key=API_KEY</code> harus tampil teks <code>{"ok":true,...}</code></p>' +
+    '<p class="hint">Server: ' + esc(API_URL || store.get('api_url') || '(kosong)') + '</p>';
+  document.querySelector('main').prepend(box);
+});
 
 $('pic').addEventListener('change', () => { store.set('pic', $('pic').value.trim()); loadRecent(); });
 $('lokasi').addEventListener('change', () => store.set('lokasi', $('lokasi').value));
