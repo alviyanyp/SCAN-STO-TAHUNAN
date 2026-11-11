@@ -1,12 +1,13 @@
 /* Service worker STO Barcode: aplikasi bisa diinstal & dibuka cepat.
  * Naikkan VERSION setiap kali index.html diubah supaya HP mengambil versi baru. */
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 const CACHE = 'sto-barcode-' + VERSION;
 const SHELL = ['./', './index.html', './index.html?app=sto-barcode', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).then(() => c.add(LIB).catch(() => {}))));
+  // simpan satu per satu: kalau ada file yang hilang, yang lain tetap tersimpan & aplikasi tetap terpasang
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(SHELL.concat(LIB).map(u => c.add(u).catch(() => {})))));
   self.skipWaiting();
 });
 
