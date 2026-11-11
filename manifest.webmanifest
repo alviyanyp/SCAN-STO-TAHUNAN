@@ -1,15 +1,26 @@
 {
-  "name": "STO Barcode",
-  "short_name": "STO Barcode",
+  "id": "sto-barcode-scan-tahunan",
+  "name": "STO Barcode Scan",
+  "short_name": "STO Scan",
   "description": "Stock opname dengan scan barcode",
-  "start_url": "./index.html",
+  "start_url": "./index.html?app=sto-barcode",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f2f4f3",
   "theme_color": "#0f5132",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
