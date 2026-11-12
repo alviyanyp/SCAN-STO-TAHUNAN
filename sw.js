@@ -1,6 +1,6 @@
 /* Service worker STO Barcode: aplikasi bisa diinstal & dibuka cepat.
  * Naikkan VERSION setiap kali index.html diubah supaya HP mengambil versi baru. */
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const CACHE = 'sto-barcode-' + VERSION;
 const SHELL = ['./', './index.html', './index.html?app=sto-barcode', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';

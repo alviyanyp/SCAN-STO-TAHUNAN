@@ -70,6 +70,8 @@
   .pad .fn { font-size:16px; background:#e3e8e5; }
   .pad .prev { font-size:15px; background:#dbe7fb; color:#1f3a5f; }
   .pad .z { grid-column:span 2; }
+  #result.noreg #qtyLbl, #result.noreg #qty, #result.noreg #pad, #result.noreg #catLbl, #result.noreg #catatan, #result.noreg #rManualBox, #result.noreg #btnSimpan { display:none !important; }
+  .newbox { background:#e8f5ec; border:1px solid #b9dfc6; color:#0f5132; }
   .sel { font-weight:800; } .sel.up { color:#0f7a0f; } .sel.dn { color:var(--err); }
 </style>
 </head>
@@ -114,7 +116,7 @@
       <input id="namaManual" placeholder="Tulis nama barang">
     </div>
     <div id="rPrev" class="prevbox hide"></div>
-    <label>Qty <span id="rSat2"></span></label>
+    <label id="qtyLbl">Qty <span id="rSat2"></span></label>
     <input id="qty" inputmode="none" readonly placeholder="0" autocomplete="off">
     <div class="pad" id="pad">
       <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="del" class="fn">⌫</button>
@@ -122,7 +124,7 @@
       <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="," class="fn">,</button>
       <button data-k="0" class="z">0</button><button data-k="00">00</button><button data-k="prev" class="prev" id="kPrev">= Lalu</button>
     </div>
-    <label>Catatan (opsional)</label>
+    <label id="catLbl">Catatan (opsional)</label>
     <input id="catatan" placeholder="mis. rusak, kemasan terbuka">
     <div class="row" style="margin-top:12px">
       <button id="btnBatal" class="b-sec">Batal</button>
@@ -440,25 +442,59 @@ async function handleHarian(code) {
       if (r.hlast) S.hlast[hkey(r)] = r.hlast;
     } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); return resumeScan(); }
   }
+  // 1) Kode tidak ada di Master_Item / Label_Log -> ITEM TIDAK TERDAFTAR (tidak bisa disimpan di STO Harian)
+  if (info.type === 'unknown') { beep(false); return showNotRegistered(info); }
   const key = hkey(info), last = S.hlast[key];
   if (last && last.sh === shiftNow().key) return blockShift(info, last);
-  beep(info.type !== 'unknown');
-  showResult(info); showPrev(last);
-  if (!fromServer) run('resolveCode', code).then(r => {           // pastikan dengan data server (HP lain)
+  beep(true);
+  showResult(info);
+  if (last) showPrev(last); else showChecking();                  // 2) cek riwayat STO_Harian
+  if (fromServer) { if (!last) applyHarianStatus(info, key); return; }
+  let answered = false;
+  const timer = setTimeout(() => { if (!answered && S.cur && hkey(S.cur) === key && S.checking) showNew(true); }, 5000);
+  run('resolveCode', info.label || info.kode).then(r => {
+    answered = true; clearTimeout(timer);
     if (!S.cur || S.cur.blocked || hkey(S.cur) !== key) return;
     if (r.hlast) {
       S.hlast[key] = r.hlast;
       if (r.hlast.sh === shiftNow().key) return blockShift(info, r.hlast);
-      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, true);
-    }
-  }).catch(() => {});
+      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, !!last);
+    } else if (!last) showNew(false);
+  }).catch(() => { answered = true; clearTimeout(timer); if (!last && S.cur && hkey(S.cur) === key) showNew(true); });
+}
+function applyHarianStatus(r, key) {
+  if (r.hlast) { if (r.hlast.sh === shiftNow().key) return blockShift(r, r.hlast); showPrev(r.hlast); }
+  else showNew(false);
+}
+function showChecking() {
+  S.checking = true; S.isNew = false; S.prevQty = null;
+  $('kPrev').classList.add('hide'); $('rPrev').className = 'prevbox';
+  $('rPrev').innerHTML = '<span class="stat">⏳ Mengecek qty sebelumnya di STO_Harian…</span>';
+  setQty('', false); $('btnSimpan').disabled = true;
+}
+/** Belum pernah ada di STO_Harian tapi ada di Master_Item -> hasil produksi baru, wajib isi qty */
+function showNew(offline) {
+  S.checking = false; S.isNew = true; S.prevQty = null;
+  $('kPrev').classList.add('hide'); $('rPrev').className = 'prevbox newbox';
+  $('rPrev').innerHTML = '🆕 <b style="font-size:16px">Item Hasil Produksi Baru</b><br><span class="stat">Belum ada di STO_Harian · ada di Master_Item. Isi qty hasil hitung.' +
+    (offline ? ' (server belum menjawab — qty sebelumnya tetap dicek saat terkirim)' : '') + '</span>';
+  setQty('', false); $('btnSimpan').disabled = false;
+}
+function showNotRegistered(info) {
+  showResult(info);
+  $('result').classList.add('noreg');
+  $('rPrev').classList.add('hide');
+  $('rAlert').innerHTML = '<div class="alert a-err"><b>ITEM TIDAK TERDAFTAR</b><br>Kode <b>' + esc(info.kode || info.label) +
+    '</b> tidak ada di Master_Item. Tambahkan dulu ke Master_Item, lalu scan ulang.</div>';
+  $('btnBatal').textContent = 'OK, lanjut scan';
 }
 function showPrev(last, update) {
+  S.checking = false; S.isNew = false; $('btnSimpan').disabled = false; $('rPrev').className = 'prevbox';
   S.prevQty = last ? last.qty : null;
   $('kPrev').classList.toggle('hide', !last);
   $('rPrev').classList.remove('hide');
   $('rPrev').innerHTML = last
-    ? 'Qty terakhir: <b>' + esc(fmtQty(last.qty)) + ' ' + esc(S.cur.satuan || '') + '</b><br><span class="stat">' + esc((last.sh || '') + ' · ' + (last.time || '') + ' · ' + (last.pic || '') + (last.lokasi ? ' · ' + last.lokasi : '')) + '</span>'
+    ? 'Qty terakhir: <b>' + esc(fmtQty(last.qty)) + ' ' + esc(S.cur.satuan || '') + '</b><br><span class="stat">' + esc([last.sh, last.time, last.pic, last.lokasi].filter(Boolean).join(' · ')) + '</span>'
     : '<span class="stat">Belum ada qty sebelumnya — isi qty baru.</span>';
   if (!update || S.fresh) setQty(last ? fmtQty(last.qty) : '', !!last);
 }
@@ -491,7 +527,8 @@ function showResult(info) {
   $('rAlert').innerHTML = known ? (info.type === 'item' ? '<div class="alert a-warn">Ini kode item (bukan nomor label unik), scan dobel tidak bisa diblokir otomatis.</div>' : '')
     : '<div class="alert a-err">Kode ini tidak ada di Master_Item / Label_Log. Simpan dengan nama manual (status: TIDAK TERDAFTAR) atau Batal.</div>';
   $('catatan').value = ''; $('namaManual').value = '';
-  setQty('', false); S.prevQty = null;
+  setQty('', false); S.prevQty = null; S.isNew = false; S.checking = false;
+  $('result').classList.remove('noreg'); $('btnBatal').textContent = 'Batal'; $('btnSimpan').disabled = false; $('rPrev').className = 'prevbox';
   $('rPrev').classList.add('hide'); $('kPrev').classList.add('hide');
   if (MODE === 'harian') $('rAlert').innerHTML = known ? '' : $('rAlert').innerHTML;
   $('result').classList.remove('hide');
@@ -529,6 +566,8 @@ $('btnSimpan').onclick = () => {
   const q = $('qty').value.trim();
   if (!/^\d[\d.,]*$/.test(q)) { toast('Isi Qty dengan angka'); $('qty').focus(); return; }
   if (S.cur.type === 'unknown' && !$('namaManual').value.trim()) { toast('Isi nama item manual'); $('namaManual').focus(); return; }
+  if (MODE === 'harian' && S.checking) { toast('Tunggu, sedang cek qty sebelumnya…'); return; }
+  if (MODE === 'harian' && S.isNew && !(Number(q.replace(/\./g, '').replace(',', '.')) > 0)) { toast('Item produksi baru: isi qty lebih dari 0'); return; }
   save(q, $('catatan').value.trim());
 };
 
@@ -635,9 +674,10 @@ function renderList() {
   const item = (r, kind) => '<div class="it"' + (kind === 'rej' ? ' style="background:#fde8e6;border-radius:8px;padding:8px"' : '') + '><div><b>' +
     esc(r.nama || '(tanpa nama)') + '</b>' +
     (r.mode === 'harian' ? ' <span class="badge" style="background:#fff4d6;color:#7a4b00">🕒 ' + esc(String(r.shift || '').slice(-2) || 'Harian') + '</span>' : '') +
+    (r.mode === 'harian' && (r.status === 'PRODUKSI BARU' || ((r.prev === '' || r.prev == null) && kind !== 'rej')) ? ' <span class="badge" style="background:#e8f5ec;color:#0f5132">🆕 baru</span>' : '') +
     (kind === 'pend' ? ' <span class="badge">⏳ antre</span>' : '') +
     (kind === 'rej' ? ' <span class="badge" style="background:#b42318;color:#fff">DITOLAK</span>' : '') +
-    (kind === 'ok' && r.status !== 'OK' ? ' <span class="badge" style="background:#fde8e6;color:#b42318">' + esc(r.status) + '</span>' : '') +
+    (kind === 'ok' && r.status !== 'OK' && r.status !== 'PRODUKSI BARU' ? ' <span class="badge" style="background:#fde8e6;color:#b42318">' + esc(r.status) + '</span>' : '') +
     '<br><span class="stat">' + esc(r.time + ' · ' + (r.label ? r.label + ' · ' : '') + r.kode + ' · ' + r.lokasi) + (r.catatan || r.note ? ' · ' + esc(r.catatan || r.note) : '') + '</span>' +
     (kind === 'rej' ? '<br><span class="stat" style="color:#b42318">' + esc(r.why) + '</span>' : '') + '</div>' +
     '<div style="text-align:right"><span class="q">' + (r.mode === 'harian' && r.prev !== '' && r.prev != null ? '<span class="stat">' + esc(fmtQty(r.prev)) + ' → </span>' : '') +
