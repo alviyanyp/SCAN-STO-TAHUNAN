@@ -185,7 +185,7 @@ function shiftNow(d) {
   else { n = 3; if (h < 7) { const q = part(new Date(d.getTime() - 864e5)); tg = q.year + '-' + q.month + '-' + q.day; } }
   return { n: n, tgl: tg, key: tg + ' S' + n, jam: SHIFT_JAM[n] };
 }
-const hkey = info => 'ITEM:' + norm(info.kode);            // STO Harian: per Kode Barcode (label L -> kode item)
+const hkey = info => norm(info.scan || info.kode);          // STO Harian: kode yang discan apa adanya
 const fmtQty = v => v === '' || v == null ? '' : String(v).replace('.', ',');
 
 /* ===== KONFIGURASI VERSI GITHUB =====
@@ -196,10 +196,10 @@ const fmtQty = v => v === '' || v == null ? '' : String(v).replace('.', ',');
 const API_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARYe360TFd_CgPOB6iOoopM3pxRQ8vi9yJ1AbnHbQ4MOxuOeA/exec';
 const API_KEY = 'c6cbd0f1b77144cc';
 
-const CLIENT_VERSION = '1.5.4';
-const MIN_SERVER = '1.5.3';               // versi Apps Script minimal yang dibutuhkan aplikasi ini
+const CLIENT_VERSION = '1.6.1';
+const MIN_SERVER = '1.6.1';               // versi Apps Script minimal yang dibutuhkan aplikasi ini
 const IN_GAS = typeof google !== 'undefined' && google.script && google.script.run;
-const API_NAME = { getInit: 'init', resolveCode: 'resolve', saveScan: 'save', saveBatch: 'batch', getRecent: 'recent', deleteScan: 'del' };
+const API_NAME = { getInit: 'init', resolveCode: 'resolve', resolveHarian: 'rharian', saveScan: 'save', saveBatch: 'batch', getRecent: 'recent', deleteScan: 'del' };
 function run(fn, ...a) {
   if (IN_GAS) return new Promise((ok, no) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => no(e))[fn](...a));
   return apiCall(fn, a);
@@ -208,7 +208,7 @@ async function apiCall(fn, a) {
   const url = API_URL || store.get('api_url'), key = API_KEY || store.get('api_key');
   if (!url) throw new Error('API_URL belum diisi di file index.html');
   const body = { api: API_NAME[fn], key: key };
-  if (fn === 'resolveCode') body.kode = a[0];
+  if (fn === 'resolveCode' || fn === 'resolveHarian') body.kode = a[0];
   if (fn === 'saveScan') body.data = a[0];
   if (fn === 'saveBatch') body.list = a[0];
   if (fn === 'getRecent') body.pic = a[0];
@@ -267,8 +267,8 @@ function beep(ok) {
 function applyInit(d) {
   S.today = d.today;
   $('ver').textContent = 'v' + CLIENT_VERSION;
-  S.hlast = {}; (d.hlast || []).forEach(x => S.hlast[x[0]] = { qty: x[1], sh: x[2], pic: x[3], time: x[4], lokasi: x[5] });
-  Q.forEach(x => { if (x.mode === 'harian' && x.hkey) S.hlast[x.hkey] = { qty: x.qty, sh: x.shift, pic: x.pic, time: x.time, lokasi: x.lokasi }; });
+  S.hlast = {}; (d.hlast || []).forEach(x => S.hlast[norm(x[0])] = { qty: x[1], sh: x[2], pic: x[3], time: x[4], lokasi: x[5], kode: x[6] || '', label: x[7] || '', nama: x[8] || '', satuan: x[9] || '' });
+  Q.forEach(x => { if (x.mode === 'harian') (x.hkeys || [x.hkey]).forEach(k => { if (k) S.hlast[k] = { qty: x.qty, sh: x.shift, pic: x.pic, time: x.time, lokasi: x.lokasi, kode: x.kodeItem || '', nama: x.nama, satuan: x.satuan }; }); });
   S.periode = d.periode; S.blokir = d.blokir !== false;
   S.items = {}; d.items.forEach(x => S.items[norm(x[0])] = x);
   S.labels = {}; (d.labels || []).forEach(x => S.labels[norm(x[0])] = x);
@@ -484,38 +484,20 @@ async function handleCode(raw) {
   if (!code) return;
   pauseScan();
   if (MODE === 'harian') return handleHarian(code);
-  const lab = S.labels[code];
 
-  // 1) Label unik yang sudah discan (data di HP) -> langsung tolak tanpa menunggu server
-  if (lab && S.scanned[code] && S.blokir) {
-    const it = S.items[norm(lab[1])];
-    S.cur = { blocked: true };
-    showBlock(code, it ? it[1] : lab[1], null);
-    run('resolveCode', code).then(r => { if (r.prev && r.prev.length) showBlock(code, r.nama, r.prev); }).catch(() => {});
-    return;
-  }
-  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
-
-  // 2) Label / item dikenal di HP -> tampil instan, cek server di belakang
-  let info = null;
-  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : (lab[3] || lab[1]), satuan: it ? it[2] : (lab[4] || '') }; }
-  else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
-
-  if (info) {
+  // STO Normal (logika awal): kode yang discan -> Master_Item kolom A. Tidak memakai Label_Log.
+  if (S.items[code]) {                                             // pernah dicari -> tampil instan
+    const it = S.items[code], info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] };
     beep(true);
     if ($('mode1').checked) { S.cur = info; return save('1', ''); }
     showResult(info);
     run('resolveCode', code).then(r => applyResolve(r, code)).catch(() => {});
     return;
   }
-
-  // 3) Tidak dikenal di HP (mis. label baru dicetak) -> tanya server
   toast('Mencari ' + code + '…', 1500);
   try {
     const r = await run('resolveCode', code);
     rememberCode(r);
-    if (r.type === 'label' && r.prev.length && r.blokir) { S.scanned[code] = true; S.cur = { blocked: true }; return showBlock(code, r.nama, r.prev); }
-    if (r.type === 'label' && r.labelStatus !== 'AKTIF') { beep(false); toast('Label ' + code + ' berstatus ' + r.labelStatus, 4000); return resumeScan(); }
     beep(r.type !== 'unknown');
     if (r.type !== 'unknown' && $('mode1').checked) { S.cur = r; return save('1', ''); }
     showResult(r); applyResolve(r, code);
@@ -525,41 +507,41 @@ async function handleCode(raw) {
 /* ---------- STO HARIAN: 1x per shift, qty sebelumnya langsung muncul ---------- */
 function blockShift(info, last) {
   S.cur = { blocked: true }; $('result').classList.add('hide');
-  showBlock(info.kode + (info.label ? ' (via ' + info.label + ')' : ''), info.nama, null,
-    'Kode barcode ini sudah discan shift ini (' + last.sh + ') jam ' + (last.time || '-') + ' oleh ' + (last.pic || '-') + (last.lokasi ? ' di ' + last.lokasi : '') + ' · qty ' + fmtQty(last.qty),
+  showBlock((info.scan || info.kode) + (info.kode && norm(info.kode) !== norm(info.scan || info.kode) ? ' (kode ' + info.kode + ')' : ''), info.nama, null,
+    'Sudah discan shift ini (' + last.sh + ') jam ' + (last.time || '-') + ' oleh ' + (last.pic || '-') + (last.lokasi ? ' di ' + last.lokasi : '') + ' · qty ' + fmtQty(last.qty),
     'SUDAH DISCAN SHIFT INI');
 }
 async function handleHarian(code) {
-  const lab = S.labels[code];
-  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
-  let info = null, fromServer = false;
-  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : (lab[3] || lab[1]), satuan: it ? it[2] : (lab[4] || '') }; }
-  else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
+  // 1) cek STO_Harian (salinan di HP: Harian_Terakhir) -> 2) cek Master_Item kolom A -> 3) tidak terdaftar
+  let last = S.hlast[code], info = null, fromServer = false;
+  if (last) info = { scan: code, kode: last.kode || code, label: last.label || '', nama: last.nama || ((S.items[norm(last.kode || code)] || [])[1]) || code, satuan: last.satuan || '', status: 'ADA' };
+  else if (S.items[code]) { const it = S.items[code]; info = { scan: code, kode: it[0], label: '', nama: it[1], satuan: it[2], status: 'PRODUKSI BARU' }; }
   if (!info) {
-    toast('Mencari ' + code + '…', 1500);
+    toast('Mencari ' + code + '…', 1200);
     try {
-      const r = await run('resolveCode', code);
-      rememberCode(r);
-      if (r.type === 'label' && r.labelStatus !== 'AKTIF') { beep(false); toast('Label ' + code + ' berstatus ' + r.labelStatus, 4000); return resumeScan(); }
-      info = r; fromServer = true;
-      if (r.hlast) S.hlast[hkey(r)] = r.hlast;
+      const r = await run('resolveHarian', code);
+      info = { scan: code, kode: r.kode, label: r.label || '', nama: r.nama, satuan: r.satuan, status: r.status }; fromServer = true;
+      if (r.hlast) { last = Object.assign({}, r.hlast, { kode: r.kode, label: r.label, nama: r.nama, satuan: r.satuan }); S.hlast[code] = last; }
+      if (r.status === 'PRODUKSI BARU') rememberCode({ type: 'item', kode: code, nama: r.nama, satuan: r.satuan });
     } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); return resumeScan(); }
   }
-  // 1) Kode tidak ada di Master_Item / Label_Log -> ITEM TIDAK TERDAFTAR (tidak bisa disimpan di STO Harian)
-  if (info.type === 'unknown') { beep(false); return showNotRegistered(info); }
-  const key = hkey(info), last = S.hlast[key];
+  if (info.status === 'TIDAK TERDAFTAR') { beep(false); return showNotRegistered(info); }
   if (last && last.sh === shiftNow().key) return blockShift(info, last);
   beep(true);
   showResult(info);
-  if (last) showPrev(last); else showNew(false);                  // 2) langsung tampil (tanpa menunggu server)
-  if (fromServer) { if (!last && info.hlast) applyHarianStatus(info, key); return; }
-  run('resolveCode', info.label || info.kode).then(r => {         // pastikan ke server di belakang layar (HP lain / data tempelan)
-    if (!S.cur || S.cur.blocked || hkey(S.cur) !== key) return;
+  $('rKode').textContent = code;
+  $('rLabel').textContent = info.kode && norm(info.kode) !== code ? 'kode ' + info.kode : '';
+  $('rLabel').classList.toggle('hide', !(info.kode && norm(info.kode) !== code));
+  if (last) showPrev(last); else showNew(false);
+  if (fromServer) return;
+  run('resolveHarian', code).then(r => {                          // pastikan ke server (HP lain / data tempelan di STO_Harian)
+    if (!S.cur || S.cur.blocked || hkey(S.cur) !== code) return;
     if (r.hlast) {
-      S.hlast[key] = r.hlast;
-      if (r.hlast.sh === shiftNow().key) return blockShift(info, r.hlast);
-      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, true);
-    }
+      const h = Object.assign({}, r.hlast, { kode: r.kode, label: r.label, nama: r.nama, satuan: r.satuan });
+      S.hlast[code] = h;
+      if (h.sh === shiftNow().key) return blockShift(info, h);
+      if (!last || last.sh !== h.sh || last.qty !== h.qty) { S.cur.status = 'ADA'; showPrev(h, true); }
+    } else if (r.status === 'TIDAK TERDAFTAR') { $('result').classList.add('hide'); S.cur = null; beep(false); showNotRegistered(Object.assign(info, { status: r.status })); }
   }).catch(() => {});
 }
 function applyHarianStatus(r, key) {
@@ -583,9 +565,11 @@ function showNew(offline) {
 function showNotRegistered(info) {
   showResult(info);
   $('result').classList.add('noreg');
-  $('rPrev').classList.add('hide');
-  $('rAlert').innerHTML = '<div class="alert a-err"><b>ITEM TIDAK TERDAFTAR</b><br>Kode <b>' + esc(info.kode || info.label) +
-    '</b> tidak ada di Master_Item. Tambahkan dulu ke Master_Item, lalu scan ulang.</div>';
+  $('rPrev').classList.add('hide'); $('rLabel').classList.add('hide');
+  $('rKode').textContent = info.scan || info.kode;
+  $('rNama').textContent = 'ITEM TIDAK TERDAFTAR'; $('rNama').style.color = '#b42318';
+  $('rAlert').innerHTML = '<div class="alert a-err"><b>ITEM TIDAK TERDAFTAR</b><br>Kode <b>' + esc(info.scan || info.kode) +
+    '</b> tidak ada di STO_Harian maupun Master_Item (kolom A).<br>Tambahkan dulu ke Master_Item, lalu scan ulang.</div>';
   $('btnBatal').textContent = 'OK, lanjut scan';
 }
 function showPrev(last, update) {
@@ -626,7 +610,7 @@ function showResult(info) {
   $('rSat').textContent = info.satuan || ''; $('rSat').classList.toggle('hide', !info.satuan);
   $('rSat2').textContent = info.satuan ? '(' + info.satuan + ')' : '';
   $('rManualBox').classList.toggle('hide', known);
-  $('rAlert').innerHTML = known ? (info.type === 'item' ? '<div class="alert a-warn">Ini kode item (bukan nomor label unik), scan dobel tidak bisa diblokir otomatis.</div>' : '')
+  $('rAlert').innerHTML = known ? ''
     : '<div class="alert a-err">Kode ini tidak ada di Master_Item / Label_Log. Simpan dengan nama manual (status: TIDAK TERDAFTAR) atau Batal.</div>';
   $('catatan').value = ''; $('namaManual').value = '';
   setQty('', false); S.prevQty = null; S.isNew = false; S.checking = false;
@@ -681,15 +665,18 @@ function save(qty, note) {
   if (!S.cur) return;
   const cur = S.cur;
   const e = {
-    cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: cur.label || '',
+    cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: '',
     qty: qty, catatan: note, namaManual: $('namaManual').value.trim(),
     nama: cur.type === 'unknown' ? $('namaManual').value.trim() : cur.nama, satuan: cur.satuan || '',
     time: new Date().toTimeString().slice(0, 5), mode: MODE
   };
   if (MODE === 'harian') {
     const sf = shiftNow();
-    e.shift = sf.key; e.hkey = hkey(cur); e.prevLast = S.hlast[e.hkey] || null; e.prev = S.prevQty;
-    S.hlast[e.hkey] = { qty: qty, sh: sf.key, pic: e.pic, time: e.time, lokasi: e.lokasi };   // scan ulang shift ini langsung ditolak di HP
+    e.kode = cur.scan; e.label = ''; e.kodeItem = cur.kode; e.shift = sf.key; e.hkey = hkey(cur); e.prev = S.prevQty;
+    e.hkeys = [e.hkey, norm(cur.kode), norm(cur.label)].filter((k, i, a) => k && a.indexOf(k) === i);
+    e.prevLasts = {}; e.hkeys.forEach(k => { e.prevLasts[k] = S.hlast[k] || null; });
+    e.prevLast = S.hlast[e.hkey] || null;
+    e.hkeys.forEach(k => { S.hlast[k] = { qty: qty, sh: sf.key, pic: e.pic, time: e.time, lokasi: e.lokasi, kode: cur.kode, label: cur.label, nama: cur.nama, satuan: cur.satuan }; });
   } else if (e.label) S.scanned[norm(e.label)] = true;          // scan berikutnya label ini langsung ditolak di HP
   Q.push(e); saveQ();
   S.lastSaved = norm(e.label || e.kode); S.lastSavedAt = Date.now();
@@ -725,7 +712,7 @@ async function flush() {
       else if (r.dup) { REJ.unshift(Object.assign({}, e, { why: 'DOBEL: sudah discan ' + r.dup.tgl + ' ' + r.dup.time + ' oleh ' + r.dup.pic + ' di ' + r.dup.lokasi })); if (!firstDup) firstDup = { e: e, r: r }; }
       else {
         REJ.unshift(Object.assign({}, e, { why: r.error || 'gagal' }));
-        if (e.mode === 'harian') { if (e.prevLast) S.hlast[e.hkey] = e.prevLast; else delete S.hlast[e.hkey]; }
+        if (e.mode === 'harian') (e.hkeys || [e.hkey]).forEach(k => { const v = (e.prevLasts || {})[k]; if (v) S.hlast[k] = v; else delete S.hlast[k]; });
         else if (e.label) delete S.scanned[norm(e.label)];
         toast('⚠️ ' + (e.label || e.kode) + ': ' + r.error, 5000);
       }
@@ -799,7 +786,7 @@ $('list').addEventListener('click', e => {
     if (SENDING) { toast('Sedang mengirim, coba lagi sebentar'); return; }
     const i = Q.findIndex(x => x.cid === b.dataset.cid);
     if (i > -1) { const x = Q.splice(i, 1)[0];
-      if (x.mode === 'harian') { if (x.prevLast) S.hlast[x.hkey] = x.prevLast; else delete S.hlast[x.hkey]; }
+      if (x.mode === 'harian') (x.hkeys || [x.hkey]).forEach(k => { const v = (x.prevLasts || {})[k]; if (v) S.hlast[k] = v; else delete S.hlast[k]; });
       else if (x.label) delete S.scanned[norm(x.label)];
       saveQ(); renderHeader(); }
     toast('Dibatalkan'); renderList(); status(); return;
@@ -809,7 +796,7 @@ $('list').addEventListener('click', e => {
   b.disabled = true;
   run('deleteScan', b.dataset.rid, $('pic').value.trim())
     .then(res => {
-      if (res && res.key) { if (res.prevSh) S.hlast[res.key] = { qty: res.prev, sh: res.prevSh }; else delete S.hlast[res.key]; renderHeader(); }
+      if (res && res.key) { (res.keys || [res.key]).forEach(k => delete S.hlast[k]); loadInit(); renderHeader(); }
       else if (b.dataset.label) delete S.scanned[norm(b.dataset.label)];
       toast('Data dihapus (bisa discan lagi)'); loadRecent(); })
     .catch(err => { toast('Gagal hapus: ' + err.message, 4000); b.disabled = false; });
