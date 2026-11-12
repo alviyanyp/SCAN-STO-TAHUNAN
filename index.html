@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0f5132">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="STO Barcode">
+<meta name="apple-mobile-web-app-title" content="STO Scan">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -51,6 +51,26 @@
   #block h1 { font-size:30px; margin:8px 0; } #block .big { font-size:64px; }
   #block .det { font-size:16px; line-height:1.5; background:rgba(0,0,0,.2); padding:12px; border-radius:10px; margin:12px 0; max-width:420px; }
   #block button { background:#fff; color:var(--err); width:100%; max-width:320px; font-size:18px; }
+  /* pilihan mode */
+  .seg { display:flex; background:#e3e8e5; border-radius:10px; padding:3px; gap:3px; margin-bottom:8px; }
+  .seg button { flex:1; background:transparent; color:var(--tx); padding:10px 6px; font-size:15px; border-radius:8px; }
+  .seg button.on { background:#fff; color:var(--pri); box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  .seg button[data-m="harian"].on { color:#7a4b00; }
+  .shiftbox { background:#fff4d6; color:#7a4b00; border-radius:8px; padding:8px 10px; font-size:14px; margin-bottom:4px; display:flex; justify-content:space-between; gap:8px; }
+  body.harian header { background:#7a4b00; }
+  body.harian #result { border-color:#c98a1a; }
+  /* qty sebelumnya + keypad angka */
+  .prevbox { background:#f3f6ff; border:1px solid #d5def5; border-radius:8px; padding:8px 10px; margin-top:8px; font-size:14px; }
+  .prevbox b { font-size:18px; }
+  #qty { caret-color:transparent; }
+  #qty.fresh { color:#1f3a5f; background:#eef6f1; }
+  .pad { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:8px; user-select:none; }
+  .pad button { font-size:24px; padding:12px 0; background:#eef1ef; color:var(--tx); border-radius:10px; touch-action:manipulation; }
+  .pad button:active { background:#cfd6d2; }
+  .pad .fn { font-size:16px; background:#e3e8e5; }
+  .pad .prev { font-size:15px; background:#dbe7fb; color:#1f3a5f; }
+  .pad .z { grid-column:span 2; }
+  .sel { font-weight:800; } .sel.up { color:#0f7a0f; } .sel.dn { color:var(--err); }
 </style>
 </head>
 <body>
@@ -60,6 +80,8 @@
 </header>
 <main>
   <div class="card">
+    <div class="seg" id="modeSeg"><button data-m="normal" class="on">📦 STO Normal</button><button data-m="harian">🕒 STO Harian</button></div>
+    <div class="shiftbox hide" id="shiftBox"></div>
     <div class="row">
       <div><label>PIC</label><input id="pic" placeholder="Nama PIC" autocomplete="name"></div>
       <div><label>Lokasi / Area</label><select id="lokasi"><option value="">— pilih —</option></select></div>
@@ -78,7 +100,7 @@
       <input id="manual" placeholder="No label / kode lalu Enter" autocapitalize="characters" style="flex:3">
       <button id="btnCari" class="b-sec" style="flex:1">Cari</button>
     </div>
-    <div class="chk"><input type="checkbox" id="mode1"><span>Mode cepat: Qty otomatis <b>1</b> & langsung simpan tiap scan</span></div>
+    <div class="chk" id="mode1Box"><input type="checkbox" id="mode1"><span>Mode cepat: Qty otomatis <b>1</b> & langsung simpan tiap scan</span></div>
     <p class="hint" id="camHint"></p>
     <div id="readerFile" class="hide"></div>
   </div>
@@ -91,8 +113,15 @@
       <label>Nama Item (manual, item belum ada di master)</label>
       <input id="namaManual" placeholder="Tulis nama barang">
     </div>
+    <div id="rPrev" class="prevbox hide"></div>
     <label>Qty <span id="rSat2"></span></label>
-    <input id="qty" inputmode="decimal" placeholder="0" autocomplete="off">
+    <input id="qty" inputmode="none" readonly placeholder="0" autocomplete="off">
+    <div class="pad" id="pad">
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="del" class="fn">⌫</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="C" class="fn">C</button>
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="," class="fn">,</button>
+      <button data-k="0" class="z">0</button><button data-k="00">00</button><button data-k="prev" class="prev" id="kPrev">= Lalu</button>
+    </div>
     <label>Catatan (opsional)</label>
     <input id="catatan" placeholder="mis. rusak, kemasan terbuka">
     <div class="row" style="margin-top:12px">
@@ -111,10 +140,10 @@
 <div id="toast"></div>
 <div id="block" class="hide">
   <div class="big">⛔</div>
-  <h1>SUDAH DISCAN</h1>
+  <h1 id="blockTitle">SUDAH DISCAN</h1>
   <div id="blockTxt" style="font-size:18px;font-weight:700"></div>
   <div class="det" id="blockDet"></div>
-  <p style="opacity:.9">Data tidak disimpan supaya tidak dobel.</p>
+  <p style="opacity:.9" id="blockNote">Data tidak disimpan supaya tidak dobel.</p>
   <button id="blockOk">OK, lanjut scan</button>
 </div>
 
@@ -132,6 +161,23 @@ const norm = k => String(k || '').trim().toUpperCase();
 const Q = (() => { try { return JSON.parse(store.get('queue') || '[]'); } catch (e) { return []; } })();
 const REJ = [];                 // ditolak server (dobel / error) - tampil merah di daftar
 let SENDING = false, RETRY = 0, OFFLINE = false;
+
+/* mode STO: 'normal' (per periode) | 'harian' (per shift) */
+let MODE = (() => { try { return localStorage.getItem('stob_mode') || 'normal'; } catch (e) { return 'normal'; } })();
+const SHIFT_JAM = { 1: '07:00–15:00', 2: '15:00–23:00', 3: '23:00–07:00' };
+/** Shift sekarang (jam WIB): S1 07–15, S2 15–23, S3 23–07 (dini hari = S3 tanggal kemarin) */
+function shiftNow(d) {
+  d = d || new Date();
+  const part = (dt) => { const o = {}; new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(dt).forEach(x => o[x.type] = x.value); return o; };
+  const p = part(d), h = Number(p.hour);
+  let tg = p.year + '-' + p.month + '-' + p.day, n;
+  if (h >= 7 && h < 15) n = 1; else if (h >= 15 && h < 23) n = 2;
+  else { n = 3; if (h < 7) { const q = part(new Date(d.getTime() - 864e5)); tg = q.year + '-' + q.month + '-' + q.day; } }
+  return { n: n, tgl: tg, key: tg + ' S' + n, jam: SHIFT_JAM[n] };
+}
+const hkey = info => info.label ? norm(info.label) : 'ITEM:' + norm(info.kode);
+const fmtQty = v => v === '' || v == null ? '' : String(v).replace('.', ',');
 
 /* ===== KONFIGURASI VERSI GITHUB =====
  * Isi 2 nilai ini bila file ini di-host di GitHub Pages (supaya kamera bisa dibuka).
@@ -188,19 +234,45 @@ function beep(ok) {
 
 /* ---------- INIT (pakai data tersimpan di HP dulu supaya instan, lalu perbarui dari server) ---------- */
 function applyInit(d) {
-  $('tgl').innerHTML = esc(d.today) + ' · <span class="per">Periode ' + esc(d.periode) + '</span>';
+  S.today = d.today;
   $('ver').textContent = 'v' + d.version;
+  S.hlast = {}; (d.hlast || []).forEach(x => S.hlast[x[0]] = { qty: x[1], sh: x[2], pic: x[3], time: x[4], lokasi: x[5] });
+  Q.forEach(x => { if (x.mode === 'harian' && x.hkey) S.hlast[x.hkey] = { qty: x.qty, sh: x.shift, pic: x.pic, time: x.time, lokasi: x.lokasi }; });
   S.periode = d.periode; S.blokir = d.blokir !== false;
   S.items = {}; d.items.forEach(x => S.items[norm(x[0])] = x);
   S.labels = {}; (d.labels || []).forEach(x => S.labels[norm(x[0])] = x);
   S.scanned = {}; (d.scanned || []).forEach(x => S.scanned[norm(x)] = true);
-  Q.forEach(x => { if (x.label) S.scanned[norm(x.label)] = true; });   // yang masih antre tetap dianggap sudah discan
+  Q.forEach(x => { if (x.label && x.mode !== 'harian') S.scanned[norm(x.label)] = true; });   // yang masih antre tetap dianggap sudah discan
   const sel = $('lokasi'), cur = sel.value || store.get('lokasi');
   sel.innerHTML = '<option value="">— pilih —</option>';
   d.lokasi.forEach(l => { const o = document.createElement('option'); o.value = o.textContent = l; sel.appendChild(o); });
   if (cur) sel.value = cur;
-  $('camHint').textContent = d.items.length + ' item · ' + (d.labels || []).length + ' label · ' + (d.scanned || []).length + ' label sudah discan periode ini.';
+  S.initInfo = d.items.length + ' item · ' + (d.labels || []).length + ' label · ' + (d.scanned || []).length + ' label sudah discan periode ini.';
+  renderHeader();
 }
+function renderHeader() {
+  const sf = shiftNow();
+  if (MODE === 'harian') {
+    $('tgl').innerHTML = '<span class="per">🕒 Shift ' + sf.n + ' · ' + sf.jam + '</span> · ' + esc(sf.tgl);
+    const done = Object.values(S.hlast || {}).filter(x => x.sh === sf.key).length;
+    $('shiftBox').innerHTML = '<span><b>STO Harian · Shift ' + sf.n + '</b> (' + sf.jam + ')<br>Satu label hanya bisa discan 1x per shift</span><span style="text-align:right"><b>' + done + '</b><br>sudah discan</span>';
+    $('camHint').textContent = 'Qty shift/hari sebelumnya muncul otomatis, tinggal ubah bila berbeda.';
+  } else {
+    $('tgl').innerHTML = esc(S.today || '') + ' · <span class="per">Periode ' + esc(S.periode || '') + '</span>';
+    $('camHint').textContent = S.initInfo || '';
+  }
+}
+function setMode(m) {
+  MODE = m; try { localStorage.setItem('stob_mode', m); } catch (e) {}
+  document.body.classList.toggle('harian', m === 'harian');
+  [...$('modeSeg').children].forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('shiftBox').classList.toggle('hide', m !== 'harian');
+  $('mode1Box').classList.toggle('hide', m === 'harian');
+  if (S.cur && !S.cur.blocked) hideResult();
+  renderHeader();
+}
+$('modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
+setInterval(renderHeader, 30000);                     // ganti shift otomatis
 function loadInit() {
   return run('getInit').then(d => { applyInit(d); store.set('init', JSON.stringify(d)); })
     .catch(e => {
@@ -216,6 +288,7 @@ function loadInit() {
     });
 }
 try { const c = store.get('init'); if (c) applyInit(JSON.parse(c)); } catch (e) {}
+setMode(MODE);
 $('pic').value = store.get('pic');
 $('mode1').checked = store.get('mode1') === '1';
 loadInit().then(loadRecent);
@@ -289,8 +362,9 @@ $('btnCari').onclick = () => {
 };
 
 /* ---------- NOTIFIKASI SUDAH DISCAN ---------- */
-function showBlock(no, nama, prev, extra) {
+function showBlock(no, nama, prev, extra, title) {
   pauseScan(); beep(false);
+  $('blockTitle').textContent = title || 'SUDAH DISCAN';
   $('blockTxt').textContent = no + (nama ? ' · ' + nama : '');
   $('blockDet').innerHTML = prev && prev.length
     ? prev.map(x => esc('Discan ' + x.tgl + ' ' + x.time + ' oleh ' + x.pic + ' di ' + x.lokasi + ' · qty ' + x.qty)).join('<br>')
@@ -304,6 +378,7 @@ async function handleCode(raw) {
   const code = norm(raw);
   if (!code) return;
   pauseScan();
+  if (MODE === 'harian') return handleHarian(code);
   const lab = S.labels[code];
 
   // 1) Label unik yang sudah discan (data di HP) -> langsung tolak tanpa menunggu server
@@ -342,6 +417,52 @@ async function handleCode(raw) {
   } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); resumeScan(); }
 }
 
+/* ---------- STO HARIAN: 1x per shift, qty sebelumnya langsung muncul ---------- */
+function blockShift(info, last) {
+  S.cur = { blocked: true }; $('result').classList.add('hide');
+  showBlock(info.label || info.kode, info.nama, null,
+    'Sudah discan shift ini (' + last.sh + ') jam ' + (last.time || '-') + ' oleh ' + (last.pic || '-') + (last.lokasi ? ' di ' + last.lokasi : '') + ' · qty ' + fmtQty(last.qty),
+    'SUDAH DISCAN SHIFT INI');
+}
+async function handleHarian(code) {
+  const lab = S.labels[code];
+  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
+  let info = null, fromServer = false;
+  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : lab[1], satuan: it ? it[2] : '' }; }
+  else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
+  if (!info) {
+    toast('Mencari ' + code + '…', 1500);
+    try {
+      const r = await run('resolveCode', code);
+      if (r.type === 'label') S.labels[code] = [r.kode, r.nama, r.labelStatus === 'AKTIF' ? 1 : 0];
+      if (r.type === 'label' && r.labelStatus !== 'AKTIF') { beep(false); toast('Label ' + code + ' berstatus ' + r.labelStatus, 4000); return resumeScan(); }
+      info = r; fromServer = true;
+      if (r.hlast) S.hlast[hkey(r)] = r.hlast;
+    } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); return resumeScan(); }
+  }
+  const key = hkey(info), last = S.hlast[key];
+  if (last && last.sh === shiftNow().key) return blockShift(info, last);
+  beep(info.type !== 'unknown');
+  showResult(info); showPrev(last);
+  if (!fromServer) run('resolveCode', code).then(r => {           // pastikan dengan data server (HP lain)
+    if (!S.cur || S.cur.blocked || hkey(S.cur) !== key) return;
+    if (r.hlast) {
+      S.hlast[key] = r.hlast;
+      if (r.hlast.sh === shiftNow().key) return blockShift(info, r.hlast);
+      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, true);
+    }
+  }).catch(() => {});
+}
+function showPrev(last, update) {
+  S.prevQty = last ? last.qty : null;
+  $('kPrev').classList.toggle('hide', !last);
+  $('rPrev').classList.remove('hide');
+  $('rPrev').innerHTML = last
+    ? 'Qty terakhir: <b>' + esc(fmtQty(last.qty)) + ' ' + esc(S.cur.satuan || '') + '</b><br><span class="stat">' + esc((last.sh || '') + ' · ' + (last.time || '') + ' · ' + (last.pic || '') + (last.lokasi ? ' · ' + last.lokasi : '')) + '</span>'
+    : '<span class="stat">Belum ada qty sebelumnya — isi qty baru.</span>';
+  if (!update || S.fresh) setQty(last ? fmtQty(last.qty) : '', !!last);
+}
+
 function applyResolve(r, code) {
   if (!S.cur || (S.cur.label || S.cur.kode) !== (r.label || r.kode)) return;
   if (r.type === 'label' && r.prev.length) {
@@ -369,15 +490,40 @@ function showResult(info) {
   $('rManualBox').classList.toggle('hide', known);
   $('rAlert').innerHTML = known ? (info.type === 'item' ? '<div class="alert a-warn">Ini kode item (bukan nomor label unik), scan dobel tidak bisa diblokir otomatis.</div>' : '')
     : '<div class="alert a-err">Kode ini tidak ada di Master_Item / Label_Log. Simpan dengan nama manual (status: TIDAK TERDAFTAR) atau Batal.</div>';
-  $('qty').value = ''; $('catatan').value = ''; $('namaManual').value = '';
+  $('catatan').value = ''; $('namaManual').value = '';
+  setQty('', false); S.prevQty = null;
+  $('rPrev').classList.add('hide'); $('kPrev').classList.add('hide');
+  if (MODE === 'harian') $('rAlert').innerHTML = known ? '' : $('rAlert').innerHTML;
   $('result').classList.remove('hide');
   $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  setTimeout(() => $('qty').focus(), 250);
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // tutup keyboard HP
 }
 
 function hideResult() { $('result').classList.add('hide'); S.cur = null; resumeScan(); }
 $('btnBatal').onclick = hideResult;
-$('qty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('btnSimpan').click(); } });
+/* ---------- KEYPAD ANGKA DI LAYAR (tanpa keyboard HP) ---------- */
+function setQty(v, fresh) { $('qty').value = v; S.fresh = !!fresh; $('qty').classList.toggle('fresh', !!fresh); }
+function padKey(k) {
+  let v = $('qty').value;
+  if (k === 'C') v = '';
+  else if (k === 'del') v = S.fresh ? '' : v.slice(0, -1);
+  else if (k === 'prev') { if (S.prevQty != null) return setQty(fmtQty(S.prevQty), true); }
+  else if (k === ',') { if (S.fresh) v = ''; if (!v.includes(',')) v = (v || '0') + ','; }
+  else { if (S.fresh || v === '0') v = ''; if (v.replace(',', '').length < 10) v += k; }
+  setQty(v, false);
+}
+$('pad').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { padKey(b.dataset.k); try { navigator.vibrate && navigator.vibrate(15); } catch (x) {} } });
+$('qty').addEventListener('click', () => { if (S.fresh) setQty($('qty').value, false); });
+document.addEventListener('keydown', e => {                 // keyboard PC / scanner bluetooth
+  if ($('result').classList.contains('hide')) return;
+  const a = document.activeElement && document.activeElement.id;
+  if (a === 'catatan' || a === 'namaManual' || a === 'manual' || a === 'pic') { if (e.key === 'Enter' && a !== 'manual' && a !== 'pic') { e.preventDefault(); $('btnSimpan').click(); } return; }
+  if (/^[0-9]$/.test(e.key)) { e.preventDefault(); padKey(e.key); }
+  else if (e.key === 'Backspace') { e.preventDefault(); padKey('del'); }
+  else if (e.key === ',' || e.key === '.') { e.preventDefault(); padKey(','); }
+  else if (e.key === 'Enter') { e.preventDefault(); $('btnSimpan').click(); }
+  else if (e.key === 'Escape') { e.preventDefault(); hideResult(); }
+});
 $('catatan').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('btnSimpan').click(); } });
 $('btnSimpan').onclick = () => {
   const q = $('qty').value.trim();
@@ -397,12 +543,19 @@ function save(qty, note) {
     cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: cur.label || '',
     qty: qty, catatan: note, namaManual: $('namaManual').value.trim(),
     nama: cur.type === 'unknown' ? $('namaManual').value.trim() : cur.nama, satuan: cur.satuan || '',
-    time: new Date().toTimeString().slice(0, 5)
+    time: new Date().toTimeString().slice(0, 5), mode: MODE
   };
+  if (MODE === 'harian') {
+    const sf = shiftNow();
+    e.shift = sf.key; e.hkey = hkey(cur); e.prevLast = S.hlast[e.hkey] || null; e.prev = S.prevQty;
+    S.hlast[e.hkey] = { qty: qty, sh: sf.key, pic: e.pic, time: e.time, lokasi: e.lokasi };   // scan ulang shift ini langsung ditolak di HP
+  } else if (e.label) S.scanned[norm(e.label)] = true;          // scan berikutnya label ini langsung ditolak di HP
   Q.push(e); saveQ();
-  if (e.label) S.scanned[norm(e.label)] = true;          // scan berikutnya label ini langsung ditolak di HP
   beep(true);
-  toast('✅ ' + (e.label ? e.label + ' · ' : '') + (e.nama || e.kode) + ' = ' + qty + (e.satuan ? ' ' + e.satuan : ''), 1500);
+  const pq = e.prev != null && e.prev !== '' ? Number(String(e.prev).replace(',', '.')) : null, nq = Number(String(qty).replace(',', '.'));
+  toast('✅ ' + (e.label ? e.label + ' · ' : '') + (e.nama || e.kode) + ' = ' + qty + (e.satuan ? ' ' + e.satuan : '') +
+    (MODE === 'harian' && pq != null ? ' (lalu ' + fmtQty(pq) + (nq - pq ? ', ' + (nq > pq ? '+' : '') + fmtQty(Math.round((nq - pq) * 1000) / 1000) : ', sama') + ')' : ''), 1800);
+  renderHeader();
   hideResult();
   renderList(); flush();
 }
@@ -413,19 +566,33 @@ async function flush() {
   const batch = Q.slice(0, 20);
   try {
     const res = await run('saveBatch', batch.map(x => ({ cid: x.cid, pic: x.pic, lokasi: x.lokasi, kode: x.kode, label: x.label,
-      qty: x.qty, catatan: x.catatan, namaManual: x.namaManual })));
+      qty: x.qty, catatan: x.catatan, namaManual: x.namaManual, mode: x.mode || 'normal' })));
     OFFLINE = false; RETRY = 0;
     let firstDup = null;
     res.forEach(r => {
       const i = Q.findIndex(x => x.cid === r.cid);
       const e = i > -1 ? Q.splice(i, 1)[0] : null;
       if (!e) return;
-      if (r.ok) { S.recent.unshift(Object.assign({}, e, { rid: r.rid, status: 'OK', nama: r.nama || e.nama, satuan: r.satuan || e.satuan })); S.count++; }
+      if (r.ok) { S.recent.unshift(Object.assign({}, e, { rid: r.rid, status: 'OK', nama: r.nama || e.nama, satuan: r.satuan || e.satuan,
+        prev: r.qtyPrev !== undefined ? r.qtyPrev : e.prev, selisih: r.selisih, shift: r.shift || e.shift })); S.count++; }
+      else if (r.dup && e.mode === 'harian') {
+        REJ.unshift(Object.assign({}, e, { why: 'DOBEL SHIFT: sudah discan ' + r.dup.sh + ' jam ' + r.dup.time + ' oleh ' + r.dup.pic + ' (qty ' + fmtQty(r.dup.qty) + ')' }));
+        S.hlast[e.hkey] = { qty: r.dup.qty, sh: r.dup.sh, pic: r.dup.pic, time: r.dup.time, lokasi: r.dup.lokasi };
+        if (!firstDup) firstDup = { e: e, r: r };
+      }
       else if (r.dup) { REJ.unshift(Object.assign({}, e, { why: 'DOBEL: sudah discan ' + r.dup.tgl + ' ' + r.dup.time + ' oleh ' + r.dup.pic + ' di ' + r.dup.lokasi })); if (!firstDup) firstDup = { e: e, r: r }; }
-      else { REJ.unshift(Object.assign({}, e, { why: r.error || 'gagal' })); if (e.label) delete S.scanned[norm(e.label)]; toast('⚠️ ' + (e.label || e.kode) + ': ' + r.error, 5000); }
+      else {
+        REJ.unshift(Object.assign({}, e, { why: r.error || 'gagal' }));
+        if (e.mode === 'harian') { if (e.prevLast) S.hlast[e.hkey] = e.prevLast; else delete S.hlast[e.hkey]; }
+        else if (e.label) delete S.scanned[norm(e.label)];
+        toast('⚠️ ' + (e.label || e.kode) + ': ' + r.error, 5000);
+      }
     });
     saveQ();
-    if (firstDup) showBlock(firstDup.e.label, firstDup.e.nama, [firstDup.r.dup]);
+    if (firstDup && firstDup.e.mode === 'harian') { const d = firstDup.r.dup; S.cur = { blocked: true };
+      showBlock(firstDup.e.label || firstDup.e.kode, firstDup.e.nama, null, 'Sudah discan ' + d.sh + ' jam ' + d.time + ' oleh ' + d.pic + ' · qty ' + fmtQty(d.qty), 'SUDAH DISCAN SHIFT INI'); }
+    else if (firstDup) showBlock(firstDup.e.label, firstDup.e.nama, [firstDup.r.dup]);
+    renderHeader();
   } catch (err) {
     const m = String(err.message || err);
     if (/API key|tidak dikenal|API_URL/i.test(m)) toast('Gagal kirim: ' + m, 6000);
@@ -457,17 +624,24 @@ function loadRecent() {
     renderList();
   }).catch(() => {});
 }
+function selTxt(r) {
+  if (r.mode !== 'harian' || r.selisih === '' || r.selisih == null) return '';
+  const v = Number(r.selisih);
+  return ' <span class="sel ' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + esc(fmtQty(v)) + '</span>';
+}
 function renderList() {
   const me = norm($('pic').value);
   const pend = Q.filter(x => norm(x.pic) === me).slice().reverse();
   const item = (r, kind) => '<div class="it"' + (kind === 'rej' ? ' style="background:#fde8e6;border-radius:8px;padding:8px"' : '') + '><div><b>' +
     esc(r.nama || '(tanpa nama)') + '</b>' +
+    (r.mode === 'harian' ? ' <span class="badge" style="background:#fff4d6;color:#7a4b00">🕒 ' + esc(String(r.shift || '').slice(-2) || 'Harian') + '</span>' : '') +
     (kind === 'pend' ? ' <span class="badge">⏳ antre</span>' : '') +
     (kind === 'rej' ? ' <span class="badge" style="background:#b42318;color:#fff">DITOLAK</span>' : '') +
     (kind === 'ok' && r.status !== 'OK' ? ' <span class="badge" style="background:#fde8e6;color:#b42318">' + esc(r.status) + '</span>' : '') +
     '<br><span class="stat">' + esc(r.time + ' · ' + (r.label ? r.label + ' · ' : '') + r.kode + ' · ' + r.lokasi) + (r.catatan || r.note ? ' · ' + esc(r.catatan || r.note) : '') + '</span>' +
     (kind === 'rej' ? '<br><span class="stat" style="color:#b42318">' + esc(r.why) + '</span>' : '') + '</div>' +
-    '<div style="text-align:right"><span class="q">' + esc(r.qty) + ' ' + esc(r.satuan) + '</span><br>' +
+    '<div style="text-align:right"><span class="q">' + (r.mode === 'harian' && r.prev !== '' && r.prev != null ? '<span class="stat">' + esc(fmtQty(r.prev)) + ' → </span>' : '') +
+      esc(fmtQty(r.qty)) + ' ' + esc(r.satuan) + '</span>' + selTxt(r) + '<br>' +
     (kind === 'ok' ? '<button class="x" data-rid="' + esc(r.rid) + '" data-label="' + esc(r.label) + '">Hapus</button>'
       : kind === 'pend' ? '<button class="x" data-cid="' + esc(r.cid) + '">Batal</button>'
         : '<button class="x" data-rej="' + esc(r.cid) + '">Tutup</button>') + '</div></div>';
@@ -481,14 +655,20 @@ $('list').addEventListener('click', e => {
   if (b.dataset.cid) {                                      // batalkan yang masih antre (belum terkirim)
     if (SENDING) { toast('Sedang mengirim, coba lagi sebentar'); return; }
     const i = Q.findIndex(x => x.cid === b.dataset.cid);
-    if (i > -1) { const x = Q.splice(i, 1)[0]; if (x.label) delete S.scanned[norm(x.label)]; saveQ(); }
+    if (i > -1) { const x = Q.splice(i, 1)[0];
+      if (x.mode === 'harian') { if (x.prevLast) S.hlast[x.hkey] = x.prevLast; else delete S.hlast[x.hkey]; }
+      else if (x.label) delete S.scanned[norm(x.label)];
+      saveQ(); renderHeader(); }
     toast('Dibatalkan'); renderList(); status(); return;
   }
   if (!b.dataset.rid) return;
   if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Yakin hapus?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Hapus'; }, 3000); return; }
   b.disabled = true;
   run('deleteScan', b.dataset.rid, $('pic').value.trim())
-    .then(() => { if (b.dataset.label) delete S.scanned[norm(b.dataset.label)]; toast('Data dihapus (label bisa discan lagi)'); loadRecent(); })
+    .then(res => {
+      if (res && res.key) { if (res.prevSh) S.hlast[res.key] = { qty: res.prev, sh: res.prevSh }; else delete S.hlast[res.key]; renderHeader(); }
+      else if (b.dataset.label) delete S.scanned[norm(b.dataset.label)];
+      toast('Data dihapus (bisa discan lagi)'); loadRecent(); })
     .catch(err => { toast('Gagal hapus: ' + err.message, 4000); b.disabled = false; });
 });
 renderList(); status(); flush();
