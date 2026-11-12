@@ -196,8 +196,8 @@ const fmtQty = v => v === '' || v == null ? '' : String(v).replace('.', ',');
 const API_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARYe360TFd_CgPOB6iOoopM3pxRQ8vi9yJ1AbnHbQ4MOxuOeA/exec';
 const API_KEY = 'c6cbd0f1b77144cc';
 
-const CLIENT_VERSION = '1.6.1';
-const MIN_SERVER = '1.6.1';               // versi Apps Script minimal yang dibutuhkan aplikasi ini
+const CLIENT_VERSION = '1.7.0';
+const MIN_SERVER = '1.7.0';               // versi Apps Script minimal yang dibutuhkan aplikasi ini
 const IN_GAS = typeof google !== 'undefined' && google.script && google.script.run;
 const API_NAME = { getInit: 'init', resolveCode: 'resolve', resolveHarian: 'rharian', saveScan: 'save', saveBatch: 'batch', getRecent: 'recent', deleteScan: 'del' };
 function run(fn, ...a) {
@@ -485,22 +485,43 @@ async function handleCode(raw) {
   pauseScan();
   if (MODE === 'harian') return handleHarian(code);
 
-  // STO Normal (logika awal): kode yang discan -> Master_Item kolom A. Tidak memakai Label_Log.
-  if (S.items[code]) {                                             // pernah dicari -> tampil instan
-    const it = S.items[code], info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] };
+  // STO Normal: nomor label unik (Label_Log) atau kode item (Master_Item kolom A)
+  const lab = S.labels[code];
+  // 1) Label unik yang sudah discan (data di HP) -> langsung tolak tanpa menunggu server
+  if (lab && S.scanned[code] && S.blokir) {
+    const it = S.items[norm(lab[1])];
+    S.cur = { blocked: true };
+    showBlock(code, it ? it[1] : (lab[3] || lab[1]), null);
+    run('resolveCode', code).then(r => { if (r.prev && r.prev.length) showBlock(code, r.nama, r.prev); }).catch(() => {});
+    return;
+  }
+  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
+  // 2) Label / item dikenal di HP -> tampil instan, cek server di belakang
+  let info = null;
+  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : (lab[3] || lab[1]), satuan: it ? it[2] : (lab[4] || '') }; }
+  else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
+  if (info) {
     beep(true);
     if ($('mode1').checked) { S.cur = info; return save('1', ''); }
     showResult(info);
     run('resolveCode', code).then(r => applyResolve(r, code)).catch(() => {});
     return;
   }
+  // 3) Tidak dikenal di HP (mis. label baru dicetak) -> tanya server
   toast('Mencari ' + code + '…', 1500);
   try {
     const r = await run('resolveCode', code);
     rememberCode(r);
+    if (r.type === 'label' && r.prev.length && r.blokir) { S.scanned[code] = true; S.cur = { blocked: true }; return showBlock(code, r.nama, r.prev); }
+    if (r.type === 'label' && r.labelStatus !== 'AKTIF') { beep(false); toast('Label ' + code + ' berstatus ' + r.labelStatus, 4000); return resumeScan(); }
     beep(r.type !== 'unknown');
     if (r.type !== 'unknown' && $('mode1').checked) { S.cur = r; return save('1', ''); }
     showResult(r); applyResolve(r, code);
+    if (r.type === 'unknown' && /^L\d{5,}$/i.test(code)) {
+      $('rNama').textContent = 'LABEL TIDAK DIKENAL';
+      $('rAlert').innerHTML = '<div class="alert a-err"><b>LABEL TIDAK DIKENAL</b><br>Nomor label <b>' + esc(code) + '</b> tidak ada di sheet Label_Log. ' +
+        'Scan Kode Barcode item, atau cetak label baru.</div>';
+    }
   } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); resumeScan(); }
 }
 
@@ -513,14 +534,19 @@ function blockShift(info, last) {
 }
 async function handleHarian(code) {
   // 1) cek STO_Harian (salinan di HP: Harian_Terakhir) -> 2) cek Master_Item kolom A -> 3) tidak terdaftar
-  let last = S.hlast[code], info = null, fromServer = false;
-  if (last) info = { scan: code, kode: last.kode || code, label: last.label || '', nama: last.nama || ((S.items[norm(last.kode || code)] || [])[1]) || code, satuan: last.satuan || '', status: 'ADA' };
-  else if (S.items[code]) { const it = S.items[code]; info = { scan: code, kode: it[0], label: '', nama: it[1], satuan: it[2], status: 'PRODUKSI BARU' }; }
+  const lab = S.labels[code];                                         // nomor label -> Kode Barcode (Label_Log)
+  if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); return resumeScan(); }
+  const kodeT = lab ? norm(lab[1]) : code;
+  let last = S.hlast[code] || (kodeT !== code ? S.hlast[kodeT] : null), info = null, fromServer = false;
+  const it0 = S.items[kodeT];
+  if (last) info = { scan: code, kode: last.kode || kodeT, label: lab ? code : (last.label || ''), nama: last.nama || (it0 ? it0[1] : (lab ? lab[3] : '')) || code, satuan: last.satuan || (it0 ? it0[2] : (lab ? lab[4] : '')) || '', status: 'ADA' };
+  else if (it0) info = { scan: code, kode: it0[0], label: lab ? code : '', nama: it0[1], satuan: it0[2], status: 'PRODUKSI BARU' };
   if (!info) {
     toast('Mencari ' + code + '…', 1200);
     try {
       const r = await run('resolveHarian', code);
-      info = { scan: code, kode: r.kode, label: r.label || '', nama: r.nama, satuan: r.satuan, status: r.status }; fromServer = true;
+      if (r.error) { beep(false); toast(r.error, 4000); return resumeScan(); }
+      info = { scan: code, kode: r.kode, label: r.label || '', nama: r.nama, satuan: r.satuan, status: r.status, labelUnknown: r.labelUnknown }; fromServer = true;
       if (r.hlast) { last = Object.assign({}, r.hlast, { kode: r.kode, label: r.label, nama: r.nama, satuan: r.satuan }); S.hlast[code] = last; }
       if (r.status === 'PRODUKSI BARU') rememberCode({ type: 'item', kode: code, nama: r.nama, satuan: r.satuan });
     } catch (e) { beep(false); toast('Gagal cek kode: ' + e.message, 4000); return resumeScan(); }
@@ -568,8 +594,15 @@ function showNotRegistered(info) {
   $('rPrev').classList.add('hide'); $('rLabel').classList.add('hide');
   $('rKode').textContent = info.scan || info.kode;
   $('rNama').textContent = 'ITEM TIDAK TERDAFTAR'; $('rNama').style.color = '#b42318';
-  $('rAlert').innerHTML = '<div class="alert a-err"><b>ITEM TIDAK TERDAFTAR</b><br>Kode <b>' + esc(info.scan || info.kode) +
-    '</b> tidak ada di STO_Harian maupun Master_Item (kolom A).<br>Tambahkan dulu ke Master_Item, lalu scan ulang.</div>';
+  const c = String(info.scan || info.kode || '');
+  if (info.labelUnknown || (/^L\d{5,}$/i.test(c) && !S.labels[norm(c)])) {
+    $('rNama').textContent = 'LABEL TIDAK DIKENAL';
+    $('rAlert').innerHTML = '<div class="alert a-err"><b>LABEL TIDAK DIKENAL</b><br>Nomor label <b>' + esc(c) + '</b> tidak ada di Label_Log maupun STO_Harian. ' +
+      'Scan Kode Barcode item, atau cetak label baru.</div>';
+  } else {
+    $('rAlert').innerHTML = '<div class="alert a-err"><b>ITEM TIDAK TERDAFTAR</b><br>Kode <b>' + esc(info.kode || c) +
+      '</b> tidak ada di STO_Harian maupun Master_Item (kolom A).<br>Tambahkan dulu ke Master_Item, lalu scan ulang.</div>';
+  }
   $('btnBatal').textContent = 'OK, lanjut scan';
 }
 function showPrev(last, update) {
@@ -665,7 +698,7 @@ function save(qty, note) {
   if (!S.cur) return;
   const cur = S.cur;
   const e = {
-    cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: '',
+    cid: cidNew(), pic: $('pic').value.trim(), lokasi: $('lokasi').value, kode: cur.kode, label: cur.label || '',
     qty: qty, catatan: note, namaManual: $('namaManual').value.trim(),
     nama: cur.type === 'unknown' ? $('namaManual').value.trim() : cur.nama, satuan: cur.satuan || '',
     time: new Date().toTimeString().slice(0, 5), mode: MODE
