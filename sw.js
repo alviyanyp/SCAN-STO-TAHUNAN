@@ -1,6 +1,6 @@
 /* Service worker STO Barcode: aplikasi bisa diinstal & dibuka cepat.
  * Naikkan VERSION setiap kali index.html diubah supaya HP mengambil versi baru. */
-const VERSION = '1.7.0';
+const VERSION = '1.7.0-d';
 const CACHE = 'sto-barcode-' + VERSION;
 const SHELL = ['./', './index.html', './index.html?app=sto-barcode', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
@@ -12,7 +12,7 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('sto-barcode-') && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
@@ -21,6 +21,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;                       // kirim data ke server: tidak disentuh
   const url = new URL(req.url);
   if (/script\.google|googleusercontent/.test(url.hostname)) return;   // data STO selalu dari server
+  if (url.pathname.includes('/dashboard/')) return;                    // aplikasi Dashboard punya service worker sendiri
 
   // Halaman: ambil versi terbaru dari internet (maks 3 detik), kalau lambat pakai yang tersimpan
   if (req.mode === 'navigate' || url.pathname.endsWith('/index.html')) {

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b3d91">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="STO Dashboard">
+<title>STO Dashboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  html, body { margin: 0; height: 100%; background: #f2f4f3; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2321; }
+  #frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #f2f4f3; }
+  .cover { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; background: #f2f4f3; }
+  .cover img { width: 84px; height: 84px; border-radius: 20px; }
+  .cover h1 { font-size: 20px; margin: 0; }
+  .cover p { margin: 0; color: #55605c; max-width: 420px; line-height: 1.5; }
+  .spin { width: 28px; height: 28px; border: 3px solid #cfd8e8; border-top-color: #0b3d91; border-radius: 50%; animation: r .8s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  button { font: inherit; padding: 10px 18px; border-radius: 10px; border: 0; background: #0b3d91; color: #fff; cursor: pointer; }
+  #tools { position: fixed; right: 10px; bottom: 10px; display: flex; gap: 6px; opacity: .35; transition: opacity .2s; z-index: 5; }
+  #tools:hover, #tools:focus-within { opacity: 1; }
+  #tools button { padding: 7px 10px; font-size: 14px; background: #1c2321; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<!-- Dashboard asli tetap di Apps Script; aplikasi ini membukanya layar penuh supaya bisa diinstal di PC/TV/HP. -->
+<iframe id="frame" title="Dashboard Monitoring STO" allow="clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>
+
+<div class="cover" id="loading">
+  <img src="icons/icon-192.png" alt="">
+  <h1>STO Dashboard</h1>
+  <div class="spin" aria-hidden="true"></div>
+  <p>Memuat data dari server…</p>
+</div>
+
+<div class="cover" id="offline" hidden>
+  <img src="icons/icon-192.png" alt="">
+  <h1>Tidak ada koneksi internet</h1>
+  <p>Dashboard butuh internet untuk mengambil data STO terbaru. Halaman akan dimuat ulang otomatis saat sinyal kembali.</p>
+  <button onclick="load()">Coba lagi</button>
+</div>
+
+<div id="tools">
+  <button onclick="load()" title="Muat ulang dashboard">⟳ Muat ulang</button>
+  <button onclick="full()" title="Layar penuh (untuk TV)">⛶ Layar penuh</button>
+</div>
+
+<script>
+// Alamat Dashboard di Apps Script (alamat /exec + ?page=dashboard). Ganti di sini bila alamat exec berubah.
+const DASH_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARYe360TFd_CgPOB6iOoopM3pxRQ8vi9yJ1AbnHbQ4MOxuOeA/exec?page=dashboard';
+
+const frame = document.getElementById('frame');
+const loading = document.getElementById('loading');
+const offline = document.getElementById('offline');
+let timer;
+
+function load() {
+  if (!navigator.onLine) { offline.hidden = false; loading.hidden = true; return; }
+  offline.hidden = true; loading.hidden = false;
+  frame.src = DASH_URL + (DASH_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+  clearTimeout(timer);
+  timer = setTimeout(() => { loading.hidden = true; }, 15000);   // jangan menutupi layar selamanya
+}
+frame.addEventListener('load', () => { if (frame.src) { loading.hidden = true; clearTimeout(timer); } });
+
+function full() {
+  const d = document;
+  if (d.fullscreenElement) d.exitFullscreen && d.exitFullscreen();
+  else d.documentElement.requestFullscreen && d.documentElement.requestFullscreen().catch(() => {});
+}
+
+window.addEventListener('online', load);
+window.addEventListener('offline', () => { offline.hidden = false; });
+
+// Muat ulang penuh tiap 6 jam supaya dashboard yang menyala terus di TV tetap segar
+setInterval(load, 6 * 60 * 60 * 1000);
+
+load();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

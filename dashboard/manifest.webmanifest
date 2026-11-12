@@ -1,0 +1,27 @@
+{
+  "id": "sto-barcode-dashboard",
+  "name": "STO Dashboard Monitoring",
+  "short_name": "STO Dashboard",
+  "description": "Monitoring hasil STO Normal & STO Harian secara live",
+  "start_url": "./index.html?app=sto-dashboard",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#f2f4f3",
+  "theme_color": "#0b3d91",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
