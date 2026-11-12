@@ -81,6 +81,7 @@
   <div style="text-align:right"><button id="btnInstall" class="hide">📲 Install</button><br><small id="ver"></small></div>
 </header>
 <main>
+  <div id="verWarn" class="card hide" style="background:#fde8e6;color:#b42318;border:2px solid #b42318;font-size:14px"></div>
   <div class="card">
     <div class="seg" id="modeSeg"><button data-m="normal" class="on">📦 STO Normal</button><button data-m="harian">🕒 STO Harian</button></div>
     <div class="shiftbox hide" id="shiftBox"></div>
@@ -147,6 +148,7 @@
   <div class="det" id="blockDet"></div>
   <p style="opacity:.9" id="blockNote">Data tidak disimpan supaya tidak dobel.</p>
   <button id="blockOk">OK, lanjut scan</button>
+  <p style="opacity:.8;font-size:13px">menutup otomatis dalam 3 detik</p>
 </div>
 
 <script>
@@ -189,6 +191,7 @@ const fmtQty = v => v === '' || v == null ? '' : String(v).replace('.', ',');
 const API_URL = 'https://script.google.com/macros/s/AKfycbzCuOh0oIGFaIsyJQ-tvARYe360TFd_CgPOB6iOoopM3pxRQ8vi9yJ1AbnHbQ4MOxuOeA/exec';
 const API_KEY = 'c6cbd0f1b77144cc';
 
+const CLIENT_VERSION = '1.5.2';
 const IN_GAS = typeof google !== 'undefined' && google.script && google.script.run;
 const API_NAME = { getInit: 'init', resolveCode: 'resolve', saveScan: 'save', saveBatch: 'batch', getRecent: 'recent', deleteScan: 'del' };
 function run(fn, ...a) {
@@ -224,14 +227,34 @@ function toast(msg, ms) {
   const t = $('toast'); t.textContent = msg; t.style.display = 'block';
   clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', ms || 2200);
 }
+/* Bunyi "TUT" kencang seperti scanner gudang. Browser HP mengunci suara sampai layar disentuh,
+   jadi audio dibuka pada sentuhan pertama (mis. tombol Mulai Scan). */
+function audioCtx() {
+  if (!beep.ctx) { try { beep.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (beep.ctx.state === 'suspended') { try { beep.ctx.resume(); } catch (e) {} }
+  return beep.ctx;
+}
+['touchstart', 'pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, function unlock() {
+  const c = audioCtx(); if (!c) return;
+  const b = c.createBuffer(1, 1, 22050), src = c.createBufferSource(); src.buffer = b; src.connect(c.destination); src.start(0);
+}, { passive: true }));
+function tone(c, freq, t0, dur, vol) {
+  const o = c.createOscillator(), g = c.createGain(), comp = c.createDynamicsCompressor();
+  o.type = 'square'; o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.005);
+  g.gain.setValueAtTime(vol, t0 + dur - 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(comp); comp.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
 function beep(ok) {
   try {
-    const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.value = ok ? 1500 : 260; o.connect(g); g.connect(ctx.destination);
-    g.gain.value = .18; o.start(); o.stop(ctx.currentTime + (ok ? .12 : .5));
+    const c = audioCtx();
+    if (c) {
+      const t = c.currentTime + 0.01;
+      if (ok) tone(c, 2700, t, 0.16, 1.0);                                   // TUT! (sukses)
+      else { tone(c, 420, t, 0.22, 1.0); tone(c, 330, t + 0.28, 0.32, 1.0); } // TUT-TUUT (gagal / ditolak)
+    }
   } catch (e) {}
-  try { navigator.vibrate && navigator.vibrate(ok ? 80 : [200, 80, 200, 80, 200]); } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate(ok ? 120 : [250, 100, 250, 100, 250]); } catch (e) {}
 }
 
 /* ---------- INIT (pakai data tersimpan di HP dulu supaya instan, lalu perbarui dari server) ---------- */
@@ -249,7 +272,13 @@ function applyInit(d) {
   sel.innerHTML = '<option value="">— pilih —</option>';
   d.lokasi.forEach(l => { const o = document.createElement('option'); o.value = o.textContent = l; sel.appendChild(o); });
   if (cur) sel.value = cur;
-  S.initInfo = d.items.length + ' item · ' + (d.labels || []).length + ' label · ' + (d.scanned || []).length + ' label sudah discan periode ini.';
+  S.initInfo = (d.masterCount || d.items.length).toLocaleString('id-ID') + ' item master · ' + (d.labels || []).length + ' label · ' + (d.scanned || []).length + ' label sudah discan periode ini.';
+  // Peringatan bila Apps Script (server) belum diperbarui ke versi yang sama dengan aplikasi ini
+  if (d.version !== CLIENT_VERSION) {
+    $('verWarn').innerHTML = '⚠️ Server Apps Script masih <b>v' + esc(d.version) + '</b>, aplikasi ini <b>v' + CLIENT_VERSION + '</b>. ' +
+      'Ganti Kode.gs, jalankan setup, lalu Terapkan → Kelola deployment → Versi baru. Mode STO Harian tidak akan berfungsi sebelum server diperbarui.';
+    $('verWarn').classList.remove('hide');
+  } else $('verWarn').classList.add('hide');
   renderHeader();
 }
 function renderHeader() {
@@ -332,15 +361,19 @@ async function stopScan() {
   if (S.scanner && S.scanning) { try { await S.scanner.stop(); } catch (e) {} }
   S.scanning = false; $('btnScan').textContent = '📷 Mulai Scan';
 }
-function pauseScan() { if (S.scanner && S.scanning) { try { S.scanner.pause(true); } catch (e) {} } }
-function resumeScan() { if (S.scanner && S.scanning) { try { S.scanner.resume(); } catch (e) {} } }
+/* Kamera TIDAK dibekukan: selama form/notifikasi terbuka hasil baca diabaikan saja,
+   jadi setelah Simpan kamera langsung siap (tanpa "Scanner paused"). */
+function pauseScan() { S.hold = true; }
+function resumeScan() { S.hold = false; S.readyAt = Date.now() + 250; }
 $('btnScan').onclick = () => S.scanning ? stopScan() : startScan();
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopScan(); });
 
 function onDecoded(text) {
-  const now = Date.now();
-  if (S.busy || S.cur || !$('block').classList.contains('hide') || (text === S.lastCode && now - S.lastTime < 3000)) return;
-  S.lastCode = text; S.lastTime = now;
+  const now = Date.now(), code = norm(text);
+  if (S.hold || S.busy || S.cur || now < (S.readyAt || 0) || !$('block').classList.contains('hide')) return;
+  if (code === S.lastCode && now - S.lastTime < 3000) return;               // bacaan ganda dari frame kamera
+  if (code === S.lastSaved && now - S.lastSavedAt < 15000) return;          // label yang baru disimpan masih di depan kamera
+  S.lastCode = code; S.lastTime = now;
   handleCode(text);
 }
 
@@ -372,6 +405,9 @@ function showBlock(no, nama, prev, extra, title) {
     ? prev.map(x => esc('Discan ' + x.tgl + ' ' + x.time + ' oleh ' + x.pic + ' di ' + x.lokasi + ' · qty ' + x.qty)).join('<br>')
     : esc(extra || 'Label ini sudah discan di periode ' + S.periode + '.');
   $('block').classList.remove('hide');
+  clearTimeout(showBlock.t);
+  showBlock.t = setTimeout(() => { if (!$('block').classList.contains('hide')) $('blockOk').click(); }, 3000);   // tutup otomatis
+  S.lastSaved = norm(no); S.lastSavedAt = Date.now();                     // label yang sama tidak memicu notifikasi berulang
 }
 $('blockOk').onclick = () => { $('block').classList.add('hide'); S.cur = null; resumeScan(); };
 
@@ -395,7 +431,7 @@ async function handleCode(raw) {
 
   // 2) Label / item dikenal di HP -> tampil instan, cek server di belakang
   let info = null;
-  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : lab[1], satuan: it ? it[2] : '' }; }
+  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : (lab[3] || lab[1]), satuan: it ? it[2] : (lab[4] || '') }; }
   else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
 
   if (info) {
@@ -430,7 +466,7 @@ async function handleHarian(code) {
   const lab = S.labels[code];
   if (lab && !lab[2]) { beep(false); toast('Label ' + code + ' berstatus BATAL', 4000); resumeScan(); return; }
   let info = null, fromServer = false;
-  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : lab[1], satuan: it ? it[2] : '' }; }
+  if (lab) { const it = S.items[norm(lab[1])]; info = { type: 'label', label: code, kode: lab[1], nama: it ? it[1] : (lab[3] || lab[1]), satuan: it ? it[2] : (lab[4] || '') }; }
   else if (S.items[code]) { const it = S.items[code]; info = { type: 'item', kode: it[0], nama: it[1], satuan: it[2] }; }
   if (!info) {
     toast('Mencari ' + code + '…', 1500);
@@ -448,19 +484,16 @@ async function handleHarian(code) {
   if (last && last.sh === shiftNow().key) return blockShift(info, last);
   beep(true);
   showResult(info);
-  if (last) showPrev(last); else showChecking();                  // 2) cek riwayat STO_Harian
-  if (fromServer) { if (!last) applyHarianStatus(info, key); return; }
-  let answered = false;
-  const timer = setTimeout(() => { if (!answered && S.cur && hkey(S.cur) === key && S.checking) showNew(true); }, 5000);
-  run('resolveCode', info.label || info.kode).then(r => {
-    answered = true; clearTimeout(timer);
+  if (last) showPrev(last); else showNew(false);                  // 2) langsung tampil (tanpa menunggu server)
+  if (fromServer) { if (!last && info.hlast) applyHarianStatus(info, key); return; }
+  run('resolveCode', info.label || info.kode).then(r => {         // pastikan ke server di belakang layar (HP lain / data tempelan)
     if (!S.cur || S.cur.blocked || hkey(S.cur) !== key) return;
     if (r.hlast) {
       S.hlast[key] = r.hlast;
       if (r.hlast.sh === shiftNow().key) return blockShift(info, r.hlast);
-      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, !!last);
-    } else if (!last) showNew(false);
-  }).catch(() => { answered = true; clearTimeout(timer); if (!last && S.cur && hkey(S.cur) === key) showNew(true); });
+      if (!last || last.sh !== r.hlast.sh || last.qty !== r.hlast.qty) showPrev(r.hlast, true);
+    }
+  }).catch(() => {});
 }
 function applyHarianStatus(r, key) {
   if (r.hlast) { if (r.hlast.sh === shiftNow().key) return blockShift(r, r.hlast); showPrev(r.hlast); }
@@ -496,7 +529,7 @@ function showPrev(last, update) {
   $('rPrev').innerHTML = last
     ? 'Qty terakhir: <b>' + esc(fmtQty(last.qty)) + ' ' + esc(S.cur.satuan || '') + '</b><br><span class="stat">' + esc([last.sh, last.time, last.pic, last.lokasi].filter(Boolean).join(' · ')) + '</span>'
     : '<span class="stat">Belum ada qty sebelumnya — isi qty baru.</span>';
-  if (!update || S.fresh) setQty(last ? fmtQty(last.qty) : '', !!last);
+  if (!update || S.fresh || $('qty').value === '') setQty(last ? fmtQty(last.qty) : '', !!last);
 }
 
 function applyResolve(r, code) {
@@ -590,6 +623,7 @@ function save(qty, note) {
     S.hlast[e.hkey] = { qty: qty, sh: sf.key, pic: e.pic, time: e.time, lokasi: e.lokasi };   // scan ulang shift ini langsung ditolak di HP
   } else if (e.label) S.scanned[norm(e.label)] = true;          // scan berikutnya label ini langsung ditolak di HP
   Q.push(e); saveQ();
+  S.lastSaved = norm(e.label || e.kode); S.lastSavedAt = Date.now();
   beep(true);
   const pq = e.prev != null && e.prev !== '' ? Number(String(e.prev).replace(',', '.')) : null, nq = Number(String(qty).replace(',', '.'));
   toast('✅ ' + (e.label ? e.label + ' · ' : '') + (e.nama || e.kode) + ' = ' + qty + (e.satuan ? ' ' + e.satuan : '') +
